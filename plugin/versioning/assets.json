@@ -1,0 +1,12 @@
+{
+  "webpack": {
+    "entry": {
+    }
+  },
+
+  "styles": {
+    "entry": {
+    	"dashboard-tool": "tool/dashboard.less"
+    }
+  }
+}

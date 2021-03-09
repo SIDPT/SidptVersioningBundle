@@ -1,0 +1,6 @@
+sidpt_versioning_api:
+    resource: "@Sidpt/VersioningBundle/Controller/"
+    prefix: apiv2
+    type: api
+    options:
+        expose: true
