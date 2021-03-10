@@ -6,6 +6,13 @@ namespace Sidpt\VersioningBundle\Entity;
 use Doctrine\Common\Collections\ArrayCollection;
 
 use Claroline\AppBundle\Entity\Identifier\Id;
+use Claroline\AppBundle\Entity\Identifier\Uuid;
+
+
+use Claroline\CoreBundle\Entity\Resource\ResourceNode;
+
+use Sidpt\VersioningBundle\Entity\ResourceVersion;
+
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -18,6 +25,9 @@ use Doctrine\ORM\Mapping as ORM;
 class ResourceNodeBranch
 {
     use Id;
+    use Uuid;
+
+
 
     /**
      * Branch name for the current version.
@@ -32,7 +42,11 @@ class ResourceNodeBranch
     /**
      * ResourceNode handled by the branch
      *
-     * @ORM\ManyToOne(
+     * We assume each branch to uniquely handle a node,
+     * with sub branches holding children of the main branch ResourceNode
+     * (for translations)
+     *
+     * @ORM\OneToOne(
      *     targetEntity="Claroline\CoreBundle\Entity\Resource\ResourceNode")
      *
      * @var ResourceNode
@@ -42,6 +56,8 @@ class ResourceNodeBranch
 
     /**
      * Optional reference to a parent branch (mainly the "main" one)
+     * Parent branch is allegedly attached to the parent node of the current
+     * targeted resource node
      *
      * @ORM\ManyToOne(
      *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch")
@@ -51,9 +67,10 @@ class ResourceNodeBranch
     protected $parentBranch;
 
     /**
-     * Last version of the resource for the node branch
+     * Displayed version of the resource for the node branch
+     * (should default to the last version)
      *
-     * @ORM\ManyToOne(
+     * @ORM\OneToOne(
      *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion")
      * @ORM\JoinColumn(nullable=false)
      *
@@ -61,26 +78,12 @@ class ResourceNodeBranch
      */
     protected $head;
 
-    /**
-     * Optional version to displayed for the branch
-     * (If unspecified, the head is displayed)
-     *
-     * @ORM\ManyToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion")
-     *
-     * @var [type]
-     */
-    protected $displayedVersion;
 
-    /**
-     * Specify if the branch is the default one to use for a node
-     *
-     * @ORM\Column(type="boolean")
-     *
-     * @var boolean
-     */
-    protected $default = false;
 
+    public function __construct()
+    {
+        $this->refreshUuid();
+    }
 
 
     public function getName()
@@ -103,46 +106,25 @@ class ResourceNodeBranch
         return $this->head;
     }
 
-    public function getDisplayedVersion()
-    {
-        if (isset($this->displayedVersion)) {
-            return $this->displayedVersion;
-        } else {
-            return $this->head;
-        }
-    }
-
-    public function isDefault($newStatus = null)
-    {
-        if (isset($newStatus)) {
-            $this->default = $newStatus;
-        }
-        return $this->default;
-    }
 
     public function setName($name)
     {
         $this->name = $name;
     }
 
-    public function setResourceNode($resourceNode)
+    public function setResourceNode(ResourceNode $resourceNode)
     {
         $this->resourceNode = $resourceNode;
     }
 
-    public function setParentBranch($parentBranch)
+    public function setParentBranch(ResourceNodeBranch $parentBranch)
     {
         $this->parentBranch = $parentBranch;
     }
 
-    public function setHead($head)
+    public function setHead(ResourceVersion $head)
     {
         $this->head = $head;
-    }
-
-    public function setDisplayedVersion($displayedVersion)
-    {
-        $this->displayedVersion = $displayedVersion;
     }
 
 }

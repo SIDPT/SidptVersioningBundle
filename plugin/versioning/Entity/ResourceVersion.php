@@ -6,6 +6,11 @@ namespace Sidpt\VersioningBundle\Entity;
 use Doctrine\Common\Collections\ArrayCollection;
 
 use Claroline\AppBundle\Entity\Identifier\Id;
+
+use Claroline\CoreBundle\Entity\User;
+
+use Sidpt\VersioningBundle\Entity\ResourceNodeBranch;
+
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -18,6 +23,7 @@ use Doctrine\ORM\Mapping as ORM;
 class ResourceVersion
 {
     use Id;
+    use Uuid;
     
 
     /**
@@ -30,19 +36,6 @@ class ResourceVersion
      * @var string
      */
     protected $branch;
-
-    /**
-     * TODO
-     * Optional status reference of the resource version
-     * (Note : to be used for revisions and editorial management)
-     *
-     * @ORM\ManyToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceStatus")
-     *
-     * @var string
-     
-    protected $status;
-    */
    
 
     /**
@@ -54,22 +47,46 @@ class ResourceVersion
      */
     protected $version;
 
-    
 
     /**
-     * Resource class (that is, extending an AbtractResource)
+     * Resource Type
      *
-     * @ORM\Column(type="string", length=255)
+     * @ORM\ManyToOne(targetEntity="Claroline\CoreBundle\Entity\Resource\ResourceType")
+     * @ORM\JoinColumn(name="resource_type_id", onDelete="CASCADE", nullable=false)
      *
      * @var [type]
      */
-    protected $resourceClass;
+    protected $resourceType;
 
     /**
-     * [$resourceId description]
+     * Resource Uuid
+     *
+     * @ORM\Column(type="string", length=36, nullable=false)
+     *
      * @var [type]
      */
     protected $resourceId;
+
+
+    /**
+     * @ORM\Column(type="datetime")
+     * @var [type]
+     */
+    protected $creationDate;
+
+
+    /**
+     * @ORM\Column(type="datetime")
+     * @var [type]
+     */
+    protected $lastModificationDate;
+
+    /**
+     * @ORM\ManyToOne(targetEntity="Claroline\CoreBundle\Entity\User")
+     * @var [type]
+     */
+    protected $lastModificationUser;
+
 
     /**
      * Previous versions of the Resource in the version tree
@@ -93,6 +110,50 @@ class ResourceVersion
      */
     protected $nextVersions;
 
+    public function __construct()
+    {
+        $this->refreshUuid();
+        $this->creationDate = new \DateTime("now");
+        $this->lastModificationDate = new \DateTime("now");
+    }
+
+    // GETTERS
+    
+    public function getBranch()
+    {
+        return $this->branch;
+    }
+
+    public function getVersion()
+    {
+        return $this->version;
+    }
+
+    public function getResourceType()
+    {
+        return $this->resourceType;
+    }
+
+    public function getResourceId()
+    {
+        return $this->resourceId;
+    }
+
+    public function getCreationDate()
+    {
+        return $this->creationDate;
+    }
+
+    public function getLastModificationDate()
+    {
+        return $this->lastModificationDate;
+    }
+
+    public function getLastModificationUser()
+    {
+        return $this->lastModificationUser;
+    }
+
 
     /**
      * [getPreviousVersion description]
@@ -101,6 +162,88 @@ class ResourceVersion
     public function getPreviousVersion()
     {
         return $this->previousVersion;
+    }
+
+    
+    public function getNextVersions()
+    {
+        return $this->nextVersions;
+    }
+    
+
+    /**
+     * @param string $locale optional locale to select the next version
+     *
+     * @return Document|null
+     */
+    public function getNextVersion(ResourceNodeBranch $branch = null) : ResourceVersion
+    {
+        $found = null;
+        if (!isset($branch) && !$nextVersions->isEmpty()) {
+            $found = $nextVersions->first();
+        } else {
+            foreach ($this->nextVersions as $nextVersion) {
+                if ($nextVersion->getBranch() === $branch) {
+                    $found = $nextVersion;
+                    break;
+                }
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * @param string $locale optional locale to select the next version
+     *
+     * @return Document|null
+     */
+    public function getNextVersionById($nextId) : ResourceVersion
+    {
+        $found = null;
+        
+        foreach ($this->nextVersions as $nextVersion) {
+            if ($nextVersion->getId() === $nextId) {
+                $found = $nextVersion;
+                break;
+            }
+        }
+        
+
+        return $found;
+    }
+
+    
+
+    // SETTERS
+    
+    public function setBranch($branch)
+    {
+        $this->branch = $branch;
+    }
+    public function setVersion($version)
+    {
+        $this->version = $version;
+    }
+    public function setResourceType($resourceClass)
+    {
+        $this->resourceType = $resourceType;
+    }
+    public function setResourceId($resourceId)
+    {
+        $this->resourceId = $resourceId;
+    }
+    public function setCreationDate($creationDate)
+    {
+        $this->creationDate = $creationDate;
+    }
+    public function setLastModificationDate($lastModificationDate)
+    {
+        $this->lastModificationDate = $lastModificationDate;
+    }
+    public function setLastModificationUser($lastModificationUser)
+    {
+        $this->lastModificationUser = $lastModificationUser;
     }
 
     /**
@@ -119,29 +262,6 @@ class ResourceVersion
     public function setNextVersions(ArrayCollection $nextVersions)
     {
         $this->nextVersions = $nextVersions;
-    }
-    
-
-    /**
-     * @param string $locale optional locale to select the next version
-     *
-     * @return Document|null
-     */
-    public function getNextVersion(string $branch = null) : ResourceVersion
-    {
-        $found = null;
-        if (!isset($branch) && !$nextVersion->isEmpty()) {
-            $found = $nextVersion->first();
-        } else {
-            foreach ($this->nextVersions as $nextVersion) {
-                if ($nextVersion->getBranch() === $branch) {
-                    $found = $nextVersion;
-                    break;
-                }
-            }
-        }
-
-        return $found;
     }
 
     /**
@@ -163,4 +283,5 @@ class ResourceVersion
             $this->nextVersions->removeElement($nextVersion);
         }
     }
+
 }

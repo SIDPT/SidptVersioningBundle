@@ -4,7 +4,7 @@ services:
         autoconfigure: false
         public: true #because controller
 
-    Sidpt\VersioningBundle\Controller\VersioningController:
+    Sidpt\VersioningBundle\API\Controller\VersioningController:
         arguments:
           - '@security.authorization_checker'
           - '@Claroline\AppBundle\Persistence\ObjectManager'

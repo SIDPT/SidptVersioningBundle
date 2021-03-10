@@ -1,6 +1,6 @@
 
-import {reducer} from '~/sidpt/versioning-bundle/plugin/tool/versioning/store/reducer'
-import {selectors} from '~/sidpt/versioning-bundle/plugin/tool/versioning/store/selectors'
+import {reducer} from '~/sidpt/versioning-bundle/plugin/versioning/tool/versioning/store/reducer'
+import {selectors} from '~/sidpt/versioning-bundle/plugin/versioning/tool/versioning/store/selectors'
 
 export {
   reducer,

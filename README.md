@@ -8,6 +8,7 @@ This repo holds the versioning dashboard plugin of the IPIP platform for the Cla
 This plugin aims to provide the following functionalities to Claroline LMS
 
 ### Version editor tool
+
 - Mark a resource node as versioned
     + Select a node in any available workspace
     + Create a 'main' branch for the selected Node
