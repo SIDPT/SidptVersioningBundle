@@ -84,6 +84,40 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $this->serializer = $serializer;
     }
 
+    /**
+     *  Get all nodes that have versioning activated
+     *  (that is, nodes that have a main branch associated)
+     *
+     * @Route("",
+     *     name="sidpt_versioning_get_nodes",
+     *     methods={"GET"})
+     * @EXT\ParamConverter(
+     *     "node",
+     *     class="ClarolineCoreBundle:ResourceNode",
+     *     options={"mapping": {"nodeId": "uuid"}})
+     *
+     */
+    public function getNodesAction()
+    {
+        $mainBranches = $this->finder->fetch(
+            ResourceNodeBranch::class,
+            [   'filters' => [
+                    'parent' => null,
+                ]
+            ]
+        );
+        return new JsonResponse(
+            array_map(
+                function (ResourceNodeBranch $branch) {
+                    return $this->serializer->serialize(
+                        $branch->getResourceNode()
+                    );
+                },
+                $mainBranches
+            )
+        );
+    }
+
 
     /**
      * @Route("/{nodeId}",
@@ -98,7 +132,7 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     public function getBranchesAction(ResourceNode $node)
     {
         // Get the main branch
-        $nodeBranches = $this->finder->search(
+        $nodeBranches = $this->finder->fetch(
             ResourceNodeBranch::class,
             [   'filters' => [
                     'resourceNode' => $node,
@@ -108,9 +142,10 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         );
         if (!empty($nodeBranches)) {
             $main = $nodeBranches[0];
+            // get the child branches
             $nodeBranches = array_merge(
                 $nodeBranches,
-                $this->finder->search(
+                $this->finder->fetch(
                     ResourceNodeBranch::class,
                     [   'filters' => [
                             'parent' => $main,
@@ -119,10 +154,14 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
                 )
             );
         }
-        // Check if other branch are linked to this main branch
         
         return new JsonResponse(
-            [   'branches' => $nodeBranches ]
+            array_map(
+                function (ResourceNodeBranch $branch) {
+                    return $this->serializer->serialize($branch);
+                },
+                $nodeBranches
+            )
         );
     }
 
@@ -138,22 +177,53 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     public function addBranchAction(ResourceNode $node, Request $request)
     {
+        $newBranch = new ResourceNodeBranch();
         $data = $this->decodeRequest($request);
-        if (isset($data['branch'])) {
-            
+
+        if (empty($data)) {
+            $mainBranch = $this->finder->fetch(
+                ResourceNodeBranch::class,
+                [   'filters' => [
+                        'resourceNode' => $node,
+                        'parent' => null,
+                    ]
+                ]
+            );
+
+            if (empty($mainBranch)) {
+                $newBranch->setName("main");
+                $newBranch->setResourceNode($node);
+                $version = new ResourceVersion();
+                $version->setBranch($newBranch);
+                $version->setResourceType($node->getResourceType());
+                // Find the resource associated to the node
+                $resource = $this->finder->fetch(
+                    $node->getResourceType()->getClass(),
+                    [   'filters' => [
+                        'resourceNode' => $node
+                        ]
+                    ]
+                );
+                $version->setResourceId($resource[0]->getUuid());
+                $newBranch->setHead($version);
+
+            } else { // create a subbranch
+                
+                // Create resource node copy
+                // make a new version
+                // create resource copy
+            }
         } else {
-            // Create a default "main" branch
+            $this->serializer->deserialize($data, $newBranch);
         }
+        
+        return new JsonResponse($this->serializer->serialize($newBranch));
     }
 
     /**
-     * @Route("/{nodeId}/{branchId}",
+     * @Route("/branch/{branchId}",
      *     name="sidpt_versioning_update_branch",
      *     methods={"PUT"})
-     * @EXT\ParamConverter(
-     *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"nodeId": "uuid"}})
      * @EXT\ParamConverter(
      *     "branch",
      *     class="SidptVersioningBundle:ResourceNodeBranch",
@@ -162,14 +232,17 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     public function updateBranchAction(
         Request $request,
-        ResourceNode $node,
         ResourceNodeBranch $branch
     ) {
+        $data = $this->decodeRequest($request);
 
+        $this->serializer->deserialize($data, $branch);
+
+        return new JsonResponse($this->serializer->serialize($branch));
     }
 
     /**
-     * @Route("/{nodeId}/{branchId}",
+     * @Route("/branch/{branchId}",
      *     name="sidpt_versioning_delete_branch",
      *     methods={"DELETE"})
      * @EXT\ParamConverter(
@@ -184,16 +257,33 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     public function deleteBranchAction(
         Request $request,
-        ResourceNode $node,
         ResourceNodeBranch $branch
     ) {
-        // Delete the selected branch from the node
-        // if this is a children branch,
-        //   also delete the resource node associated with it
+        // if this is a child branch,
+        //   delete the resource node associated with it*
+        if (!empty($branch->getParentBranch())) {
+            $this->om->remove($branch->getResourceNode());
+        }
+        // remove all versions that are linked to the branch
+        $versions = $this->om->fetch(
+            ResourceVersion::class,
+            [   'filters' => [
+                    'branch' => $branch,
+                ]
+            ]
+        );
+        foreach ($versions as $version) {
+            $this->om->remove($version);
+        }
+
+        // remove the branch
+        $this->om->remove($branch);
+
+        
     }
 
     /**
-     * @Route("/{nodeId}/{branchId}",
+     * @Route("/branch/{branchId}",
      *     name="sidpt_versioning_add_version",
      *     methods={"POST"})
      * @EXT\ParamConverter(
@@ -208,19 +298,36 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     public function addVersionAction(Request $request, ResourceVersion $version)
     {
+        $data = $this->decodeRequest($request);
+        // copy the resource from
+
 
     }
 
+    public function getVersionAction()
+    {
+
+    }
+
+
+
     /**
-     * @Route("/{nodeId}/{branchId}/{versionId}", name="sidpt_versioning_delete_version", methods={"DELETE"})
+     * @Route("/branch/{branchId}/{versionId}", name="sidpt_versioning_delete_version", methods={"DELETE"})
      * @EXT\ParamConverter(
-     *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"versionId": "id"}})
+     *     "branch",
+     *     class="SidptVersioningBundle:ResourceNodeBranch",
+     *     options={"mapping": {"branchId": "uuid"}})
+     * @EXT\ParamConverter(
+     *     "version",
+     *     class="SidptVersioningBundle:ResourceVersion",
+     *     options={"mapping": {"versionId": "uuid"}})
      *
      */
-    public function deleteVersionAction(ResourceNode $node)
-    {
+    public function deleteVersionAction(
+        Request $request,
+        ResourceNodeBranch $branch,
+        ResourceVersion $version
+    ) {
 
     }
 
