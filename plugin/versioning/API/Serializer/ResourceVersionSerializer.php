@@ -81,7 +81,9 @@ class ResourceVersionSerializer
             'id' => $version->getUuid(),
             'branchId' => $version->getBranch()->getUuid(),
             'version' => $version->getVersion(),
-            'resourceType' => $version->getResourceClass(),
+            'resourceType' => $this->typeSerializer->serialize(
+                $version->getResourceType()
+            ),
             'resourceId' => $version->getResourceId(),
             'creationDate' => $version->getCreationDate(),
             'lastModificationDate' => $version->getLastModificationDate(),

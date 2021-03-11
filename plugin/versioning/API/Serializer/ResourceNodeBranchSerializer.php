@@ -107,6 +107,16 @@ class ResourceNodeBranchSerializer
                 ResourceNode::class,
                 $data['resourceNode']['id']
             );
+            if (empty($node)) {
+                $node = new ResourceNode();
+                $this->nodeSerializer->deserialize(
+                    $data['resourceNode'],
+                    $node,
+                    $options
+                );
+                $branch->setResourceNode($node);
+
+            }
         }
 
         if (isset($data['head'])) {
@@ -114,12 +124,16 @@ class ResourceNodeBranchSerializer
                 ResourceVersion::class,
                 $data['head']['id']
             );
-            if (empty($headVersion) && !empty($node)) {
+            if (empty($headVersion)) {
                 $headVersion = new ResourceVersion();
+                $this->versionSerializer->deserialize(
+                    $data['head'],
+                    $headVersion,
+                    $options
+                );
                 $headVersion->setBranch($branch);
             }
             $branch->setHead($headVersion);
-            
         }
         if (isset($data['parentId'])) {
             $parentBranch = $this->om->find(
