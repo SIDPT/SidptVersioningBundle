@@ -27,11 +27,13 @@ class ResourceVersion
     
 
     /**
-     * (Mandatory) branch of the resource version
+     * Branch referencing this version
+     * Not following git model here :
+     *     a version can only have a single branch referenced
+     *     (as a resource should be uniquely bound to a node in claroline model)
      *
      * @ORM\ManyToOne(
      *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch")
-     * @ORM\JoinColumn(onDelete="CASCADE", nullable=false)
      *
      * @var string
      */
@@ -59,7 +61,7 @@ class ResourceVersion
     protected $resourceType;
 
     /**
-     * Resource Uuid
+     * Abstract Resource Uuid
      *
      * @ORM\Column(type="string", length=36, nullable=false)
      *
@@ -201,17 +203,15 @@ class ResourceVersion
     public function getNextVersionById($nextId) : ResourceVersion
     {
         $found = null;
-        
         foreach ($this->nextVersions as $nextVersion) {
-            if ($nextVersion->getId() === $nextId) {
+            if ($nextVersion->getUuid() === $nextId) {
                 $found = $nextVersion;
                 break;
             }
         }
-        
-
         return $found;
     }
+
 
     
 
@@ -283,5 +283,44 @@ class ResourceVersion
             $this->nextVersions->removeElement($nextVersion);
         }
     }
+
+    /**
+     * @param $branch
+     *
+    public function addBranch(ResourceNodeBranch $branch)
+    {
+        if (!$this->branches->contains($branch)) {
+            $this->branches->add($branch);
+        }
+    }*/
+
+    /**
+     * @param $branch
+     *
+    public function removeBranch(ResourceNodeBranch $branch)
+    {
+        if ($this->branches->contains($branch)) {
+            $this->branches->removeElement($branch);
+        }
+    }*/
+
+
+    /**
+     * @param string $locale optional locale to select the next version
+     *
+     * @return Document|null
+     *
+    public function getBranchById($branchId) : ResourceNodeBranch
+    {
+        $found = null;
+        foreach ($this->branches as $branch) {
+            if ($branch->getUuid() === $branchId) {
+                $found = $branch;
+                break;
+            }
+        }
+        return $found;
+    }*/
+    
 
 }

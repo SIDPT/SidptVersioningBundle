@@ -55,23 +55,26 @@ class ResourceNodeBranch
 
 
     /**
-     * Optional reference to a parent branch (mainly the "main" one)
-     * Parent branch is allegedly attached to the parent node of the current
-     * targeted resource node
+     * Optional reference to a parent branch
+     *
+     * Parent is assumed to be the "main" branch, acting both
+     * as a version repository attached to a 'real' resource node
+     * and as a versionning branch
      *
      * @ORM\ManyToOne(
      *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch")
      *
      * @var ResourceNodeBranch
      */
-    protected $parentBranch;
+    protected $parent;
 
     /**
      * Displayed version of the resource for the node branch
      * (should default to the last version)
      *
      * @ORM\OneToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion")
+     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion",
+     *     cascade={"persist"})
      * @ORM\JoinColumn(nullable=false)
      *
      * @var [type]
@@ -96,9 +99,9 @@ class ResourceNodeBranch
         return $this->resourceNode;
     }
 
-    public function getParentBranch()
+    public function getParent()
     {
-        return $this->parentBranch;
+        return $this->parent;
     }
 
     public function getHead()
@@ -117,9 +120,9 @@ class ResourceNodeBranch
         $this->resourceNode = $resourceNode;
     }
 
-    public function setParentBranch(ResourceNodeBranch $parentBranch)
+    public function setParent(ResourceNodeBranch $parent)
     {
-        $this->parentBranch = $parentBranch;
+        $this->parent = $parent;
     }
 
     public function setHead(ResourceVersion $head)

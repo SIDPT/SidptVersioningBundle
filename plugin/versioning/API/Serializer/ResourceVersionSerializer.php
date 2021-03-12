@@ -9,6 +9,7 @@ use Claroline\CoreBundle\API\Serializer\Resource\ResourceTypeSerializer;
 use Claroline\CoreBundle\API\Serializer\UserSerializer;
 
 use Claroline\CoreBundle\Entity\Resource\ResourceType;
+use Claroline\CoreBundle\Entity\Resource\ResourceNodeBranch;
 use Claroline\CoreBundle\Entity\User;
 
 class ResourceVersionSerializer
@@ -76,7 +77,6 @@ class ResourceVersionSerializer
 
     public function serialize(ResourceVersion $version, array $options = [])
     {
-
         return [
             'id' => $version->getUuid(),
             'branchId' => $version->getBranch()->getUuid(),
@@ -106,9 +106,12 @@ class ResourceVersionSerializer
 
     public function deserialize(
         array $data,
-        ResourceVersion $version, // cannot be null as it must be created by a branch
+        ResourceVersion $version = null, // should be created by a branch
         array $options = []
     ): ResourceVersion {
+        if (empty($version)) {
+            $version = new ResourceVersion();
+        }
         if (isset($data['version'])) {
             $this->sipe('version', 'setVersion', $data, $version);
         }
@@ -132,6 +135,44 @@ class ResourceVersionSerializer
         
         if (isset($data['updated']) && $data['updated'] == true) {
             $version->setLastModificationDate(new \DateTime("now"));
+        }
+        
+        // not sure yet if using multiple branches reference or single
+        // branch reference for version
+        /*if (isset($data['branches'])) {
+            $currentBranches = $version->getBranches()->toArray();
+            $branchesIds = [];
+            foreach ($data['branches'] as $key => $branchId) {
+                $branch = $version->getBranch(
+                    $branchId
+                );
+            
+                if (empty($branch)) {
+                    $branch = $this->om->find(
+                        ResourceNodeBranch::class,
+                        $branchId
+                    );
+                }
+                // only keep persisted branches
+                if (!empty($branch)) {
+                    $version->addBranch($branch);
+                    $branchesIds[] = $branch->getUuid();
+                }
+            }
+            foreach ($currentBranches as $key => $branch) {
+                if (!in_array($branch->getUuid(), $versionsIds)) {
+                    $version->removeBranch($branch);
+                }
+            }
+        }*/
+
+        if (isset($data['branchId'])) {
+            $version->setBranch(
+                $this->om->find(
+                    ResourceNodeBranch::class,
+                    $data['branchId']
+                )
+            );
         }
         
         if (isset($data['previous'])) {

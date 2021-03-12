@@ -40,6 +40,8 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     use PermissionCheckerTrait;
     use RequestDecoderTrait;
 
+
+
     /**
      * [$om description]
      *
@@ -59,7 +61,17 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     private $serializer;
 
+    /**
+     * [$finder description]
+     * @var [type]
+     */
     private $finder;
+
+    /**
+     * [$manager description]
+     * @var [type]
+     */
+    private $manager;
 
 
     /**
@@ -75,13 +87,15 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         ObjectManager $om,
         Crud $crud,
         FinderProvider $finder,
-        SerializerProvider $serializer
+        SerializerProvider $serializer,
+        ResourceManager $manager
     ) {
         $this->authorization = $authorization;
         $this->om = $om;
         $this->crud = $crud;
         $this->finder = $finder;
         $this->serializer = $serializer;
+        $this->manager = $manager;
     }
 
     /**
@@ -120,6 +134,8 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
 
 
     /**
+     *  Get the branches associated to a versioned resource node
+     * 
      * @Route("/{nodeId}",
      *     name="sidpt_versioning_get_branches",
      *     methods={"GET"})
@@ -166,6 +182,12 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     }
 
     /**
+     * Add a branch to a node
+     * If its a main branch : create references to the current node and resource
+     * if not : create copies of both the node and its associated resource,
+     *     create a new version pointing to this new resource
+     *     and set the branch to point on the node copy
+     * 
      * @Route("/{nodeId}",
      *     name="sidpt_versioning_add_branch",
      *     methods={"POST"})
@@ -180,43 +202,96 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $newBranch = new ResourceNodeBranch();
         $data = $this->decodeRequest($request);
 
-        if (empty($data)) {
-            $mainBranch = $this->finder->fetch(
-                ResourceNodeBranch::class,
-                [   'filters' => [
-                        'resourceNode' => $node,
-                        'parent' => null,
-                    ]
-                ]
-            );
 
-            if (empty($mainBranch)) {
+        $mainBranch = $this->finder->fetch(
+            ResourceNodeBranch::class,
+            [   'filters' => [
+                    'resourceNode' => $node,
+                    'parent' => null,
+                ]
+            ]
+        );
+        
+        if (empty($mainBranch)) {
+            // if the node has no main branch
+            if (empty($data)) {
+                // if no data are provided, default config
                 $newBranch->setName("main");
                 $newBranch->setResourceNode($node);
                 $version = new ResourceVersion();
                 $version->setBranch($newBranch);
                 $version->setResourceType($node->getResourceType());
                 // Find the resource associated to the node
-                $resource = $this->finder->fetch(
-                    $node->getResourceType()->getClass(),
-                    [   'filters' => [
-                        'resourceNode' => $node
-                        ]
-                    ]
-                );
-                $version->setResourceId($resource[0]->getUuid());
-                $newBranch->setHead($version);
-
-            } else { // create a subbranch
-                
-                // Create resource node copy
-                // make a new version
-                // create resource copy
+                $resource = $this->manager->getResourceFromNode($node);
+                $version->setResourceId($resource->getUuid());
+            } else {
+                // try deserialization
+                $this->serializer->deserialize($data, $newBranch);
+                // If no node data was provided, reference the current node
+                if (empty($data['resourceNode'])) {
+                    $newBranch->setResourceNode($node);
+                }
+                // If no head version data was provided, create a new one
+                // pointing to the actual resource
+                if (empty($data['head'])) {
+                    $version = new ResourceVersion();
+                    $version->setBranch($newBranch);
+                    $version->setResourceType($node->getResourceType());
+                    // Find the resource associated to the node
+                    $resource = $this->manager->getResourceFromNode($node);
+                    $version->setResourceId($resource->getUuid());
+                }
             }
-        } else {
+        } elseif (!empty($data)) {
+            if (empty($data['resourceNode'])) {
+                // If no node data was provided,
+                // retrieve current node user
+                $user = $node->getCreator();
+                // Create a node copy
+                // note : according the resource node crud,
+                //      a copy of the resource is also created
+                $newNode = $this->crud->copy(
+                    $node,
+                    [Options::IGNORE_RIGHTS, Crud::NO_PERMISSIONS],
+                    ['user' => $user, 'parent' => $node]
+                );
+                $this->om->persist($newNode);
+                $newBranch->setResourceNode($newNode);
+            }
+            // Try deserialization (at minima to retrieve branch name)
             $this->serializer->deserialize($data, $newBranch);
+
+            // TODO : avoid persisting the branch if a one with the same name
+            // already exists for the node
+            // (could be resolved on the data mode)
+
+            $newNode = $newBranch->getResourceNode();
+            if (empty($data['head'])) {
+                // If no head version data was provided,
+                // create a new one that point to the new node resource
+                $version = new ResourceVersion();
+                $version->setBranch($newBranch);
+                $version->setResourceType($newNode->getResourceType());
+                // Find the resource associated to the node
+                $resource = $this->manager->getResourceFromNode($newNode);
+                $version->setResourceId($resource->getUuid());
+                
+                // add the new version as next version of the main head
+                $version->setPreviousVersion($mainBranch->getHead());
+                $mainBranch->getHead()->addNextVersion($version);
+                // Set the new branch head
+                $newBranch->setHead($version);
+                $this->om->persist($version);
+            }
+
+            $newBranch->setParent($mainBranch);
+        } else { // error case, no data provided for the new branch
+            return new JsonResponse(['missing_branch_data'], 500);
         }
-        
+
+        $this->om->persist($newBranch);
+        $this->om->flush();
+
         return new JsonResponse($this->serializer->serialize($newBranch));
     }
 
@@ -235,9 +310,9 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         ResourceNodeBranch $branch
     ) {
         $data = $this->decodeRequest($request);
-
         $this->serializer->deserialize($data, $branch);
-
+        $this->om->persist($branch);
+        $this->om->flush();
         return new JsonResponse($this->serializer->serialize($branch));
     }
 
@@ -259,33 +334,115 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         Request $request,
         ResourceNodeBranch $branch
     ) {
-        // if this is a child branch,
-        //   delete the resource node associated with it*
-        if (!empty($branch->getParentBranch())) {
-            $this->om->remove($branch->getResourceNode());
-        }
-        // remove all versions that are linked to the branch
-        $versions = $this->om->fetch(
+        $mainBranch = $branch->getParent();
+        // versions referencing the branch
+        $versions = $this->finder->fetch(
             ResourceVersion::class,
             [   'filters' => [
-                    'branch' => $branch,
+                    'branch' => $branch
                 ]
             ]
         );
-        foreach ($versions as $version) {
+
+        // if this is a child branch,
+        if (!empty($branch->getParent())) {
+            // delete the resource node associated with it
+            $this->om->remove($branch->getResourceNode());
+            // Delete the resources of each versions
+            foreach ($versions as $key => $version) {
+                $resource = $this->om->find(
+                    $version->getResourceType()->getClass(),
+                    $version->getResourceId()
+                );
+                if (!empty($resource)) {
+                    $this->om->remove($resource);
+                }
+            }
+        }
+        
+        // remove all versions
+        foreach ($versions as $key => $version) {
+            // check if version is linked to another branch by its predecessor
+            $previousVersion = $version->getPreviousVersion();
+            if ($previousVersion->getBranch() !== $branch) {
+                // remove the link
+                $previousVersion->removeNextVersion($version);
+            }
             $this->om->remove($version);
         }
-
+        
         // remove the branch
         $this->om->remove($branch);
+        $this->om->flush();
 
-        
+        // return the main branch, or nothing is there is no more branch available
+        return new JsonResponse(
+            empty($mainBranch) ? [] :
+            $this->serializer->serialize($mainBranch)
+        );
     }
 
     /**
-     * @Route("/branch/{branchId}",
-     *     name="sidpt_versioning_add_version",
+     * Create a new version with a new resource,
+     *     change branch head to the new version
+     *     and make the new resource pointing the branch node
+     *     instead of the current version
+     *
+     * TODO : add status update with commit
+     *
+     * @Route("/version/{versionId}",
+     *     name="sidpt_versioning_commit",
      *     methods={"POST"})
+     *
+     * @EXT\ParamConverter(
+     *     "version",
+     *     class="SidptVersioningBundle:ResourceVersion",
+     *     options={"mapping": {"versionId": "uuid"}})
+     *
+     */
+    public function commitAction(ResourceVersion $version, Request $request)
+    {
+        $data = $this->decodeRequest($request);
+
+        $resource = $this->om->find(
+            $version->getResourceType()->getClass(),
+            $version->getResourceId()
+        );
+
+        $newVersion = new ResourceVersion();
+        $newVersion->setBranch($version->getBranch());
+        $newVersion->setResourceType($version->getResourceType());
+            
+        $newResource = $this->crud->copy($resource, [Options::REFRESH_UUID]);
+        // transfer node link to the new resource
+        $newResource->setResourceNode($resource->getResourceNode());
+        $resource->setResourceNode(null);
+        
+        // Create version pointing to the new resource
+        $newVersion->setResourceId($newResource->getUuid());
+
+        // linking versions
+        $newVersion->setPreviousVersion($version);
+        $version->addNextVersion($newVersion);
+        
+        // Set the branch head to the new version
+        $version->getBranch()->setHead($newVersion);
+        $this->om->persist($version);
+        $this->om->persist($newVersion);
+        $this->om->persist($version->getBranch());
+        $this->om->flush();
+
+        // return the main branch, or nothing is there is no more branch available
+        return new JsonResponse(
+            $this->serializer->serialize($newVersion)
+        );
+    }
+
+    /**
+     * @Route("/version/{versionId}",
+     *     name="sidpt_versioning_get_version,
+     *     methods={"GET"})
+     * 
      * @EXT\ParamConverter(
      *     "node",
      *     class="ClarolineCoreBundle:ResourceNode",
@@ -296,27 +453,17 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      *     options={"mapping": {"branchId": "uuid"}})
      *
      */
-    public function addVersionAction(Request $request, ResourceVersion $version)
+    public function getVersionAction(ResourceVersion $version)
     {
-        $data = $this->decodeRequest($request);
-        // copy the resource from
-
-
-    }
-
-    public function getVersionAction()
-    {
-
+        return new JsonResponse(
+            $this->serializer->serialize($version)
+        );
     }
 
 
 
     /**
-     * @Route("/branch/{branchId}/{versionId}", name="sidpt_versioning_delete_version", methods={"DELETE"})
-     * @EXT\ParamConverter(
-     *     "branch",
-     *     class="SidptVersioningBundle:ResourceNodeBranch",
-     *     options={"mapping": {"branchId": "uuid"}})
+     * @Route("/version/{versionId}", name="sidpt_versioning_delete_version", methods={"DELETE"})
      * @EXT\ParamConverter(
      *     "version",
      *     class="SidptVersioningBundle:ResourceVersion",
@@ -325,10 +472,9 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     public function deleteVersionAction(
         Request $request,
-        ResourceNodeBranch $branch,
         ResourceVersion $version
     ) {
-
+        // Delete all version following the selected version on the version branch
     }
 
     

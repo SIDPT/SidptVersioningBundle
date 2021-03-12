@@ -85,9 +85,9 @@ class ResourceNodeBranchSerializer
             'resourceNode' => $this->nodeSerializer->serialize(
                 $branch->getResourceNode
             ),
-            'parentId' => empty($branch->getParentBranch()) ?
+            'parentId' => empty($branch->getParent()) ?
                 null :
-                $branch->getParentBranch()->getUuid(),
+                $branch->getParent()->getUuid(),
             'head' => $this->versionSerializer->serialize($branch->getHead())
         ];
     }
@@ -115,32 +115,45 @@ class ResourceNodeBranchSerializer
                     $options
                 );
                 $branch->setResourceNode($node);
-
             }
         }
 
         if (isset($data['head'])) {
-            $headVersion = $this->om->find(
+            $previousHead = $branch->getHead();
+
+            $newHead = $this->om->find(
                 ResourceVersion::class,
                 $data['head']['id']
             );
-            if (empty($headVersion)) {
-                $headVersion = new ResourceVersion();
+            // TODO : WARNING there might be a risk of error here
+            if (empty($newHead)) {
+                $newHead = new ResourceVersion();
                 $this->versionSerializer->deserialize(
                     $data['head'],
-                    $headVersion,
+                    $newHead,
                     $options
                 );
-                $headVersion->setBranch($branch);
+                $newHead->setBranch($branch);
             }
-            $branch->setHead($headVersion);
+            // Relink node to the new head version
+            $currentResource = $this->om->find(
+                $previousHead->getResourceType()->getClass(),
+                $previousHead->getResourceId()
+            );
+            $newResource = $this->om->find(
+                $newHead->getResourceType()->getClass(),
+                $newHead->getResourceId()
+            );
+            $newResource->setResourceNode($currentResource->getResourceNode());
+            $currentResource->setResourceNode(null);
+            $branch->setHead($newHead);
         }
         if (isset($data['parentId'])) {
-            $parentBranch = $this->om->find(
+            $parent = $this->om->find(
                 ResourceNodeBranch::class,
                 $data['parentId']
             );
-            $branch->setParentBranch($parentBranch);
+            $branch->setParent($parent);
         }
 
         return $branch;
