@@ -136,13 +136,13 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     /**
      *  Get the branches associated to a versioned resource node
      * 
-     * @Route("/{nodeId}",
+     * @Route("/{node}",
      *     name="sidpt_versioning_get_branches",
      *     methods={"GET"})
      * @EXT\ParamConverter(
      *     "node",
      *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"nodeId": "uuid"}})
+     *     options={"mapping": {"node": "uuid"}})
      *
      */
     public function getBranchesAction(ResourceNode $node)
@@ -188,13 +188,13 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      *     create a new version pointing to this new resource
      *     and set the branch to point on the node copy
      * 
-     * @Route("/{nodeId}",
+     * @Route("/{node}",
      *     name="sidpt_versioning_add_branch",
      *     methods={"POST"})
      * @EXT\ParamConverter(
      *     "node",
      *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"nodeId": "uuid"}})
+     *     options={"mapping": {"node": "uuid"}})
      *
      */
     public function addBranchAction(ResourceNode $node, Request $request)
@@ -242,6 +242,7 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
                     $version->setResourceId($resource->getUuid());
                 }
             }
+            $mainBranch = $newBranch;
         } elseif (!empty($data)) {
             if (empty($data['resourceNode'])) {
                 // If no node data was provided,
@@ -292,17 +293,17 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $this->om->persist($newBranch);
         $this->om->flush();
 
-        return new JsonResponse($this->serializer->serialize($newBranch));
+        return $this->getBranchesAction($mainBranch->getResourceNode());
     }
 
     /**
-     * @Route("/branch/{branchId}",
+     * @Route("/branch/{branch}",
      *     name="sidpt_versioning_update_branch",
      *     methods={"PUT"})
      * @EXT\ParamConverter(
      *     "branch",
      *     class="SidptVersioningBundle:ResourceNodeBranch",
-     *     options={"mapping": {"branchId": "uuid"}})
+     *     options={"mapping": {"branch": "uuid"}})
      *
      */
     public function updateBranchAction(
@@ -313,7 +314,9 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $this->serializer->deserialize($data, $branch);
         $this->om->persist($branch);
         $this->om->flush();
-        return new JsonResponse($this->serializer->serialize($branch));
+        return new JsonResponse(
+            $this->serializer->serialize($branch)
+        );
     }
 
     /**
@@ -321,17 +324,12 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      *     name="sidpt_versioning_delete_branch",
      *     methods={"DELETE"})
      * @EXT\ParamConverter(
-     *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"nodeId": "uuid"}})
-     * @EXT\ParamConverter(
      *     "branch",
      *     class="SidptVersioningBundle:ResourceNodeBranch",
      *     options={"mapping": {"branchId": "uuid"}})
      *
      */
     public function deleteBranchAction(
-        Request $request,
         ResourceNodeBranch $branch
     ) {
         $mainBranch = $branch->getParent();
@@ -378,7 +376,7 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         // return the main branch, or nothing is there is no more branch available
         return new JsonResponse(
             empty($mainBranch) ? [] :
-            $this->serializer->serialize($mainBranch)
+                $this->serializer->serialize($mainBranch)
         );
     }
 
@@ -390,14 +388,14 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      *
      * TODO : add status update with commit
      *
-     * @Route("/version/{versionId}",
+     * @Route("/version/{afterVersion}",
      *     name="sidpt_versioning_commit",
      *     methods={"POST"})
      *
      * @EXT\ParamConverter(
      *     "version",
      *     class="SidptVersioningBundle:ResourceVersion",
-     *     options={"mapping": {"versionId": "uuid"}})
+     *     options={"mapping": {"afterVersion": "uuid"}})
      *
      */
     public function commitAction(ResourceVersion $version, Request $request)
@@ -427,6 +425,12 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         
         // Set the branch head to the new version
         $version->getBranch()->setHead($newVersion);
+
+        // If additionnal version data are provided with the request
+        if (!empty($data)) {
+            $this->serializer->deserialize($data, $newVersion);
+        }
+
         $this->om->persist($version);
         $this->om->persist($newVersion);
         $this->om->persist($version->getBranch());
@@ -442,15 +446,11 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      * @Route("/version/{versionId}",
      *     name="sidpt_versioning_get_version,
      *     methods={"GET"})
-     * 
+     *
      * @EXT\ParamConverter(
-     *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"nodeId": "uuid"}})
-     * @EXT\ParamConverter(
-     *     "branch",
-     *     class="SidptVersioningBundle:ResourceNodeBranch",
-     *     options={"mapping": {"branchId": "uuid"}})
+     *     "version",
+     *     class="SidptVersioningBundle:ResourceVersion",
+     *     options={"mapping": {"versionId": "uuid"}})
      *
      */
     public function getVersionAction(ResourceVersion $version)
@@ -463,18 +463,43 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
 
 
     /**
-     * @Route("/version/{versionId}", name="sidpt_versioning_delete_version", methods={"DELETE"})
+     * @Route("/version/{version}",
+     *     name="sidpt_versioning_delete_version",
+     *     methods={"DELETE"})
      * @EXT\ParamConverter(
      *     "version",
      *     class="SidptVersioningBundle:ResourceVersion",
-     *     options={"mapping": {"versionId": "uuid"}})
+     *     options={"mapping": {"version": "uuid"}})
      *
      */
     public function deleteVersionAction(
-        Request $request,
         ResourceVersion $version
     ) {
-        // Delete all version following the selected version on the version branch
+        // TODO : get version main node to return
+        // Default behavior :
+        // if there is a previous version, relink next versions with it
+        $previous = $version->getPreviousVersion();
+        if (!empty($previous)) {
+            // if previous is on the same branch
+            // change branch head to the previous
+            // if not :
+            //  if the deleted version has a next version on the same branch
+            //      change head to this next
+            //  if not :
+            //      raise an error saying to remove branch instead of version
+            $previous->removeNextVersion($version);
+            foreach ($version->getNextVersions() as $next) {
+                $previous->addNextVersion($next);
+                $next->setPreviousVersion($previous);
+            }
+
+        }
+
+        // remove the version
+        $this->om->remove($version);
+        $this->om->flush();
+
+        return new JsonResponse();
     }
 
     
