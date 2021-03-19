@@ -310,13 +310,14 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         Request $request,
         ResourceNodeBranch $branch
     ) {
+        //If creating branch hierarchy, add a do/while for top parent search
+        $mainBranch = $branch->getParent() ?: $branch;
         $data = $this->decodeRequest($request);
         $this->serializer->deserialize($data, $branch);
         $this->om->persist($branch);
         $this->om->flush();
-        return new JsonResponse(
-            $this->serializer->serialize($branch)
-        );
+
+        return $this->getBranchesAction($mainBranch->getResourceNode());
     }
 
     /**
@@ -332,7 +333,9 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     public function deleteBranchAction(
         ResourceNodeBranch $branch
     ) {
-        $mainBranch = $branch->getParent();
+
+        //If creating branch hierarchy, add a do/while for top parent search
+        $mainBranch = $branch->getParent() ?: $branch;
         // versions referencing the branch
         $versions = $this->finder->fetch(
             ResourceVersion::class,
@@ -373,11 +376,8 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $this->om->remove($branch);
         $this->om->flush();
 
-        // return the main branch, or nothing is there is no more branch available
-        return new JsonResponse(
-            empty($mainBranch) ? [] :
-                $this->serializer->serialize($mainBranch)
-        );
+        // return updated branches list
+        return $this->getBranchesAction($mainBranch->getResourceNode());
     }
 
     /**
@@ -400,6 +400,10 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      */
     public function commitAction(ResourceVersion $version, Request $request)
     {
+        
+        //If creating branch hierarchy, add a do/while for top parent search
+        $branch = $version->getBranch();
+        $mainBranch = $branch->getParent() ?: $branch;
         $data = $this->decodeRequest($request);
 
         $resource = $this->om->find(
@@ -436,10 +440,8 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $this->om->persist($version->getBranch());
         $this->om->flush();
 
-        // return the main branch, or nothing is there is no more branch available
-        return new JsonResponse(
-            $this->serializer->serialize($newVersion)
-        );
+        // return the updated branches list
+        return $this->getBranchesAction($mainBranch->getResourceNode());
     }
 
     /**
@@ -460,6 +462,39 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         );
     }
 
+    /**
+     *
+     *
+     * @Route("/version/{version}",
+     *     name="sidpt_versioning_update_version",
+     *     methods={"PUT"})
+     *
+     * @EXT\ParamConverter(
+     *     "version",
+     *     class="SidptVersioningBundle:ResourceVersion",
+     *     options={"mapping": {"version": "uuid"}})
+     *
+     */
+    public function updateVersionAction(ResourceVersion $version, Request $request)
+    {
+        
+        //If creating branch hierarchy, add a do/while for top parent search
+        $branch = $version->getBranch();
+        $mainBranch = $branch->getParent() ?: $branch;
+        $data = $this->decodeRequest($request);
+
+        // If additionnal version data are provided with the request
+        if (!empty($data)) {
+            $this->serializer->deserialize($data, $newVersion);
+        }
+
+        $this->om->persist($version);
+        $this->om->flush();
+
+        // return the updated branches list
+        return $this->getBranchesAction($mainBranch->getResourceNode());
+    }
+
 
 
     /**
@@ -475,7 +510,9 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     public function deleteVersionAction(
         ResourceVersion $version
     ) {
-        // TODO : get version main node to return
+        $branch = $version->getBranch();
+        $mainBranch = $branch->getParent() ?: $branch;
+        
         // Default behavior :
         // if there is a previous version, relink next versions with it
         $previous = $version->getPreviousVersion();
@@ -499,7 +536,7 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $this->om->remove($version);
         $this->om->flush();
 
-        return new JsonResponse();
+        return $this->getBranchesAction($mainBranch->getResourceNode());
     }
 
     

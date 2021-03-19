@@ -1,20 +1,22 @@
 import {makeActionCreator} from '#/main/app/store/actions'
 
+
 import {API_REQUEST} from '#/main/app/api'
 
 
 const NODES_DATA_LOAD = 'NODES_DATA_LOAD'
 const BRANCHES_DATA_LOAD = 'BRANCHES_DATA_LOAD'
 
+
+// Front end actions 
 const actions = {}
-
-
 actions.loadNodes = makeActionCreator(NODES_DATA_LOAD, 'nodes')
 actions.loadBranches = makeActionCreator(BRANCHES_DATA_LOAD, 'branches')
 
-/* ACTIONS MAPPING FROM CONTROLLER */
 
-actions.getNodes = () => ({
+// Requests to the server (mapped from controller)
+const requests = {}
+requests.getNodes = () => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_get_nodes'],
     request: {
@@ -27,7 +29,7 @@ actions.getNodes = () => ({
 })
 
 
-actions.getBranches = (nodeId) => ({
+requests.getBranches = (nodeId) => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_get_branches',{node:nodeId}],
     request: {
@@ -39,7 +41,7 @@ actions.getBranches = (nodeId) => ({
   }
 })
 
-actions.addBranch = (nodeId, branchData = null) => ({
+requests.addBranch = (nodeId, branchData = null) => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_add_branch',{node:nodeId}],
     request: {
@@ -58,7 +60,7 @@ actions.addBranch = (nodeId, branchData = null) => ({
   }
 })
 
-actions.updateBranch = (branchId, branchData) => ({
+requests.updateBranch = (branchId, branchData) => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_update_branch',{branch:branchId}],
     request: {
@@ -77,7 +79,7 @@ actions.updateBranch = (branchId, branchData) => ({
   }
 })
 
-actions.deleteBranch = (branchId) => ({
+requests.deleteBranch = (branchId) => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_delete_branch',{branch:branchId}],
     request: {
@@ -89,7 +91,7 @@ actions.deleteBranch = (branchId) => ({
   }
 })
 
-actions.commit = (versionId, versionData = null) => ({
+requests.commit = (versionId, versionData = null) => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_commit',{afterVersion:versionId}],
     request: {
@@ -108,7 +110,26 @@ actions.commit = (versionId, versionData = null) => ({
   }
 })
 
-actions.deleteVersion = (versionId) => ({
+requests.updateVersion = (versionId, versionData) => ({
+  [API_REQUEST]: {
+    url: ['sidpt_versioning_update_version',{version:versionId}],
+    request: {
+      method: 'PUT',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        versionData
+      })
+    },
+    success: (data, dispatch) => {
+      dispatch(actions.loadBranches(data))
+    }
+  }
+})
+
+requests.deleteVersion = (versionId) => ({
   [API_REQUEST]: {
     url: ['sidpt_versioning_delete_version',{version:versionId}],
     request: {
@@ -121,5 +142,7 @@ actions.deleteVersion = (versionId) => ({
 })
 
 export {
-  actions
+  actions,
+  requests,
+  BRANCHES_DATA_LOAD
 }
