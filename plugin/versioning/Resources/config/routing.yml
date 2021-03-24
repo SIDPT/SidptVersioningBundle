@@ -1,5 +1,5 @@
 sidpt_versioning_api:
-    resource: "@Sidpt/VersioningBundle/API/Controller/"
+    resource: "@SidptVersioningBundle/API/Controller/"
     prefix: apiv2
     type: api
     options:

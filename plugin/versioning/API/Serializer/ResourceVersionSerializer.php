@@ -6,7 +6,7 @@ use Claroline\AppBundle\API\Serializer\SerializerTrait;
 use Claroline\AppBundle\Persistence\ObjectManager;
 
 use Claroline\CoreBundle\API\Serializer\Resource\ResourceTypeSerializer;
-use Claroline\CoreBundle\API\Serializer\UserSerializer;
+use Claroline\CoreBundle\API\Serializer\User\UserSerializer;
 
 use Claroline\CoreBundle\Entity\Resource\ResourceType;
 use Claroline\CoreBundle\Entity\Resource\ResourceNodeBranch;
@@ -75,11 +75,13 @@ class ResourceVersionSerializer
         return '~/sidpt/versioning-bundle/plugin/versioning/version.json';
     }
 
-    public function serialize(ResourceVersion $version, array $options = [])
+    public function serialize(/*ResourceVersion|Proxy*/ $version, array $options = [])
     {
+        $user = $version->getLastModificationUser();
         return [
             'id' => $version->getUuid(),
             'branchId' => $version->getBranch()->getUuid(),
+            'isHead'=> $version->getBranch()->getHead()->getUuid() === $version->getUuid(),
             'version' => $version->getVersion(),
             'resourceType' => $this->typeSerializer->serialize(
                 $version->getResourceType()
@@ -87,13 +89,13 @@ class ResourceVersionSerializer
             'resourceId' => $version->getResourceId(),
             'creationDate' => $version->getCreationDate(),
             'lastModificationDate' => $version->getLastModificationDate(),
-            'lastModificationUser' => $this->userSerializer->serialize(
-                $version->getLastModificationUser()
-            ),
-            'previous' => $this->serialize(
-                $version->getPreviousVersion(),
-                array_merge($options, ['without_next'])
-            ),
+            'lastModificationUser' => !empty($user) ?
+                $this->userSerializer->serialize($user) : null,
+            'previous' => empty($version->getPreviousVersion()) ? null :
+                $this->serialize(
+                    $version->getPreviousVersion(),
+                    array_merge($options, ['without_next'])
+                ),
             'next' => in_array('without_next', $options) ? null :
                 array_map(
                     function (ResourceVersion $next) {

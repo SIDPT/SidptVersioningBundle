@@ -77,13 +77,13 @@ class ResourceNodeBranchSerializer
         return '~/sidpt/versioning-bundle/plugin/versioning/branch.json';
     }
 
-    public function serialize(ResourceNodeBranch $branch, array $options = [])
+    public function serialize(/*ResourceNodeBranch|Proxy*/ $branch, array $options = [])
     {
         return [
             'id' => $branch->getUuid(),
             'name' => $branch->getName(),
             'resourceNode' => $this->nodeSerializer->serialize(
-                $branch->getResourceNode
+                $branch->getResourceNode()
             ),
             'parentId' => empty($branch->getParent()) ?
                 null :

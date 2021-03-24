@@ -33,7 +33,11 @@ class ResourceNodeBranch
      * Branch name for the current version.
      * Default is "main"
      *
-     * @ORM\Column(type="string", length=255, nullable=false)
+     * @ORM\Column(
+     *     type="string",
+     *     length=255,
+     *     nullable=false
+     * )
      *
      * @var string
      */
@@ -47,7 +51,8 @@ class ResourceNodeBranch
      * (for translations)
      *
      * @ORM\OneToOne(
-     *     targetEntity="Claroline\CoreBundle\Entity\Resource\ResourceNode")
+     *     targetEntity="Claroline\CoreBundle\Entity\Resource\ResourceNode"
+     * )
      *
      * @var ResourceNode
      */
@@ -62,7 +67,12 @@ class ResourceNodeBranch
      * and as a versionning branch
      *
      * @ORM\ManyToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch")
+     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch"
+     * )
+     * @ORM\JoinColumn(
+     *     name="parent_id",
+     *     referencedColumnName="id"
+     * )
      *
      * @var ResourceNodeBranch
      */
@@ -74,10 +84,15 @@ class ResourceNodeBranch
      *
      * @ORM\OneToOne(
      *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion",
-     *     cascade={"persist"})
-     * @ORM\JoinColumn(nullable=false)
+     *     cascade={"persist"}
+     * )
+     * @ORM\JoinColumn(
+     *     name="head_id",
+     *     referencedColumnName="id",
+     *     nullable=false
+     * )
      *
-     * @var [type]
+     * @var ResourceVersion
      */
     protected $head;
 

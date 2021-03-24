@@ -11,6 +11,9 @@ use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Claroline\AppBundle\Persistence\ObjectManager;
 use Claroline\AppBundle\API\Crud;
 use Claroline\AppBundle\API\SerializerProvider;
+use Claroline\AppBundle\API\FinderProvider;
+use Claroline\CoreBundle\Manager\ResourceManager;
+use Claroline\AppBundle\Controller\AbstractApiController;
 
 // Exceptions
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -21,7 +24,11 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
+// entities
 use Sidpt\VersioningBundle\Entity\ResourceNodeBranch;
+use Sidpt\VersioningBundle\Entity\ResourceVersion;
+use Claroline\CoreBundle\Entity\Resource\ResourceNode;
+
 
 // logging for debug
 use Claroline\AppBundle\Log\LoggableTrait;
@@ -33,7 +40,7 @@ use Psr\Log\LoggerAwareInterface;
  *
  * @Route("/versioning")
  */
-class VersioningController extends AbstractApiController implements LoggerAwareInterface
+class VersioningController implements LoggerAwareInterface
 {
     use LoggableTrait;
 
@@ -102,24 +109,20 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      *  Get all nodes that have versioning activated
      *  (that is, nodes that have a main branch associated)
      *
-     * @Route("",
+     * @Route("/nodes",
      *     name="sidpt_versioning_get_nodes",
      *     methods={"GET"})
-     * @EXT\ParamConverter(
-     *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
-     *     options={"mapping": {"nodeId": "uuid"}})
      *
      */
     public function getNodesAction()
     {
         $mainBranches = $this->finder->fetch(
             ResourceNodeBranch::class,
-            [   'filters' => [
-                    'parent' => null,
-                ]
-            ]
+            [ 'parent' => null ]
         );
+        if (empty($mainBranches)) {
+            $mainBranches = [];
+        }
         return new JsonResponse(
             array_map(
                 function (ResourceNodeBranch $branch) {
@@ -135,25 +138,23 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
 
     /**
      *  Get the branches associated to a versioned resource node
-     * 
+     *
      * @Route("/{node}",
      *     name="sidpt_versioning_get_branches",
      *     methods={"GET"})
      * @EXT\ParamConverter(
      *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
+     *     class="ClarolineCoreBundle:Resource\ResourceNode",
      *     options={"mapping": {"node": "uuid"}})
-     *
+     * @EXT\ParamConverter("user", converter="current_user", options={"allowAnonymous"=false})
      */
     public function getBranchesAction(ResourceNode $node)
     {
         // Get the main branch
         $nodeBranches = $this->finder->fetch(
             ResourceNodeBranch::class,
-            [   'filters' => [
-                    'resourceNode' => $node,
-                    'parent' => null,
-                ]
+            [   'resourceNode' => $node->getId(),
+                'parent' => null
             ]
         );
         if (!empty($nodeBranches)) {
@@ -163,14 +164,12 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
                 $nodeBranches,
                 $this->finder->fetch(
                     ResourceNodeBranch::class,
-                    [   'filters' => [
-                            'parent' => $main,
-                        ]
-                    ]
+                    ['parent' => $main->getId()]
                 )
             );
+        } else {
+            $nodeBranches = [];
         }
-        
         return new JsonResponse(
             array_map(
                 function (ResourceNodeBranch $branch) {
@@ -193,22 +192,21 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      *     methods={"POST"})
      * @EXT\ParamConverter(
      *     "node",
-     *     class="ClarolineCoreBundle:ResourceNode",
+     *     class="ClarolineCoreBundle:Resource\ResourceNode",
      *     options={"mapping": {"node": "uuid"}})
      *
      */
     public function addBranchAction(ResourceNode $node, Request $request)
     {
         $newBranch = new ResourceNodeBranch();
+        $newBranchHead = null;
         $data = $this->decodeRequest($request);
 
 
         $mainBranch = $this->finder->fetch(
             ResourceNodeBranch::class,
-            [   'filters' => [
-                    'resourceNode' => $node,
-                    'parent' => null,
-                ]
+            [   'resourceNode' => $node->getId(),
+                'parent' => null
             ]
         );
         
@@ -218,12 +216,12 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
                 // if no data are provided, default config
                 $newBranch->setName("main");
                 $newBranch->setResourceNode($node);
-                $version = new ResourceVersion();
-                $version->setBranch($newBranch);
-                $version->setResourceType($node->getResourceType());
+                $newBranchHead = new ResourceVersion();
+                $newBranchHead->setBranch($newBranch);
+                $newBranchHead->setResourceType($node->getResourceType());
                 // Find the resource associated to the node
                 $resource = $this->manager->getResourceFromNode($node);
-                $version->setResourceId($resource->getUuid());
+                $newBranchHead->setResourceId($resource->getId());
             } else {
                 // try deserialization
                 $this->serializer->deserialize($data, $newBranch);
@@ -234,12 +232,12 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
                 // If no head version data was provided, create a new one
                 // pointing to the actual resource
                 if (empty($data['head'])) {
-                    $version = new ResourceVersion();
-                    $version->setBranch($newBranch);
-                    $version->setResourceType($node->getResourceType());
+                    $newBranchHead = new ResourceVersion();
+                    $newBranchHead->setBranch($newBranch);
+                    $newBranchHead->setResourceType($node->getResourceType());
                     // Find the resource associated to the node
                     $resource = $this->manager->getResourceFromNode($node);
-                    $version->setResourceId($resource->getUuid());
+                    $newBranchHead->setResourceId($resource->getId());
                 }
             }
             $mainBranch = $newBranch;
@@ -270,26 +268,27 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
             if (empty($data['head'])) {
                 // If no head version data was provided,
                 // create a new one that point to the new node resource
-                $version = new ResourceVersion();
-                $version->setBranch($newBranch);
-                $version->setResourceType($newNode->getResourceType());
+                $newBranchHead = new ResourceVersion();
+                $newBranchHead->setBranch($newBranch);
+                $newBranchHead->setResourceType($newNode->getResourceType());
                 // Find the resource associated to the node
                 $resource = $this->manager->getResourceFromNode($newNode);
-                $version->setResourceId($resource->getUuid());
+                $newBranchHead->setResourceId($resource->getId());
                 
                 // add the new version as next version of the main head
-                $version->setPreviousVersion($mainBranch->getHead());
-                $mainBranch->getHead()->addNextVersion($version);
-                // Set the new branch head
-                $newBranch->setHead($version);
-                $this->om->persist($version);
+                $newBranchHead->setPreviousVersion($mainBranch->getHead());
+                $mainBranch->getHead()->addNextVersion($newBranchHead);
             }
 
             $newBranch->setParent($mainBranch);
         } else { // error case, no data provided for the new branch
             return new JsonResponse(['missing_branch_data'], 500);
         }
-
+        
+        if (isset($newBranchHead)) {
+            $this->om->persist($newBranchHead);
+            $newBranch->setHead($newBranchHead);
+        }
         $this->om->persist($newBranch);
         $this->om->flush();
 
@@ -339,10 +338,7 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         // versions referencing the branch
         $versions = $this->finder->fetch(
             ResourceVersion::class,
-            [   'filters' => [
-                    'branch' => $branch
-                ]
-            ]
+            [ 'branch' => $branch->getUuid() ]
         );
 
         // if this is a child branch,
@@ -421,7 +417,7 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
         $resource->setResourceNode(null);
         
         // Create version pointing to the new resource
-        $newVersion->setResourceId($newResource->getUuid());
+        $newVersion->setResourceId($newResource->getId());
 
         // linking versions
         $newVersion->setPreviousVersion($version);
@@ -445,10 +441,10 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
     }
 
     /**
-     * @Route("/version/{versionId}",
-     *     name="sidpt_versioning_get_version,
-     *     methods={"GET"})
      *
+     * @Route("/version/{versionId}",
+     *     name="sidpt_versioning_get_version",
+     *     methods={"GET"})
      * @EXT\ParamConverter(
      *     "version",
      *     class="SidptVersioningBundle:ResourceVersion",
@@ -468,7 +464,6 @@ class VersioningController extends AbstractApiController implements LoggerAwareI
      * @Route("/version/{version}",
      *     name="sidpt_versioning_update_version",
      *     methods={"PUT"})
-     *
      * @EXT\ParamConverter(
      *     "version",
      *     class="SidptVersioningBundle:ResourceVersion",

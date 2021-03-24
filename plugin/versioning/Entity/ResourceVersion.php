@@ -6,6 +6,7 @@ namespace Sidpt\VersioningBundle\Entity;
 use Doctrine\Common\Collections\ArrayCollection;
 
 use Claroline\AppBundle\Entity\Identifier\Id;
+use Claroline\AppBundle\Entity\Identifier\Uuid;
 
 use Claroline\CoreBundle\Entity\User;
 
@@ -33,7 +34,9 @@ class ResourceVersion
      *     (as a resource should be uniquely bound to a node in claroline model)
      *
      * @ORM\ManyToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch")
+     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch"
+     * )
+     * @ORM\JoinColumn(name="branch_id", referencedColumnName="id", nullable=true)
      *
      * @var string
      */
@@ -43,7 +46,7 @@ class ResourceVersion
     /**
      * Optional version identifier (like a git tag)
      *
-     * @ORM\Column(type="string", length=255)
+     * @ORM\Column(type="string", length=255, nullable=true)
      *
      * @var integer
      */
@@ -53,8 +56,15 @@ class ResourceVersion
     /**
      * Resource Type
      *
-     * @ORM\ManyToOne(targetEntity="Claroline\CoreBundle\Entity\Resource\ResourceType")
-     * @ORM\JoinColumn(name="resource_type_id", onDelete="CASCADE", nullable=false)
+     * @ORM\ManyToOne(
+     *     targetEntity="Claroline\CoreBundle\Entity\Resource\ResourceType"
+     * )
+     * @ORM\JoinColumn(
+     *     name="resource_type_id",
+     *     referencedColumnName="id",
+     *     onDelete="CASCADE",
+     *     nullable=false
+     * )
      *
      * @var [type]
      */
@@ -63,7 +73,11 @@ class ResourceVersion
     /**
      * Abstract Resource Uuid
      *
-     * @ORM\Column(type="string", length=36, nullable=false)
+     * @ORM\Column(
+     *     type="string",
+     *     length=36,
+     *     nullable=false
+     * )
      *
      * @var [type]
      */
@@ -71,20 +85,29 @@ class ResourceVersion
 
 
     /**
-     * @ORM\Column(type="datetime")
+     * @ORM\Column(
+     *     type="datetime"
+     * )
      * @var [type]
      */
     protected $creationDate;
 
 
     /**
-     * @ORM\Column(type="datetime")
+     * @ORM\Column(
+     *     type="datetime"
+     * )
+     *
      * @var [type]
      */
     protected $lastModificationDate;
 
     /**
-     * @ORM\ManyToOne(targetEntity="Claroline\CoreBundle\Entity\User")
+     * @ORM\ManyToOne(
+     *     targetEntity="Claroline\CoreBundle\Entity\User"
+     * )
+     * @ORM\JoinColumn(name="user_id", referencedColumnName="id")
+     * 
      * @var [type]
      */
     protected $lastModificationUser;
@@ -94,7 +117,8 @@ class ResourceVersion
      * Previous versions of the Resource in the version tree
      *
      * @ORM\ManyToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion")
+     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion"
+     * )
      * @ORM\JoinColumn(name="previous_id", referencedColumnName="id")
      *
      * @var ResourceVersion
@@ -105,7 +129,9 @@ class ResourceVersion
      * Next versions of the ResourceVersion in the tree
      *
      * @ORM\OneToMany(
-     *     targetEntity="Sidpt\BinderBundle\Entity\ResourceVersion")
+     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceVersion",
+     *     mappedBy="previousVersion"
+     * )
      * @ORM\JoinColumn(name="next_id", referencedColumnName="id")
      *
      * @var ResourceVersion[]|ArrayCollection
@@ -225,7 +251,7 @@ class ResourceVersion
     {
         $this->version = $version;
     }
-    public function setResourceType($resourceClass)
+    public function setResourceType($resourceType)
     {
         $this->resourceType = $resourceType;
     }
@@ -283,44 +309,6 @@ class ResourceVersion
             $this->nextVersions->removeElement($nextVersion);
         }
     }
-
-    /**
-     * @param $branch
-     *
-    public function addBranch(ResourceNodeBranch $branch)
-    {
-        if (!$this->branches->contains($branch)) {
-            $this->branches->add($branch);
-        }
-    }*/
-
-    /**
-     * @param $branch
-     *
-    public function removeBranch(ResourceNodeBranch $branch)
-    {
-        if ($this->branches->contains($branch)) {
-            $this->branches->removeElement($branch);
-        }
-    }*/
-
-
-    /**
-     * @param string $locale optional locale to select the next version
-     *
-     * @return Document|null
-     *
-    public function getBranchById($branchId) : ResourceNodeBranch
-    {
-        $found = null;
-        foreach ($this->branches as $branch) {
-            if ($branch->getUuid() === $branchId) {
-                $found = $branch;
-                break;
-            }
-        }
-        return $found;
-    }*/
     
 
 }

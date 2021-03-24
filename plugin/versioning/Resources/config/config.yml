@@ -1,3 +1,9 @@
 plugin:
     has_options: false
-#TODO add tool
+
+    resource_actions:
+        - name: manage_versions
+          group: management
+          decoder: administrate
+          scope: [object]
+

@@ -1,0 +1,22 @@
+services:
+    _defaults:
+        autowire: false
+        autoconfigure: false
+        public: true
+        
+
+    Sidpt\VersioningBundle\API\Serializer\ResourceVersionSerializer:
+      tags: [claroline.serializer]
+      arguments:
+         - '@Claroline\AppBundle\Persistence\ObjectManager'
+         - '@Claroline\CoreBundle\API\Serializer\Resource\ResourceTypeSerializer'
+         - '@Claroline\CoreBundle\API\Serializer\User\UserSerializer'
+      # calls:
+      #    - setLogger: [ '@logger' ]
+
+    Sidpt\VersioningBundle\API\Serializer\ResourceNodeBranchSerializer:
+      tags: [claroline.serializer]
+      arguments:
+         - '@Claroline\AppBundle\Persistence\ObjectManager'
+         - '@Claroline\CoreBundle\API\Serializer\Resource\ResourceNodeSerializer'
+         - '@Sidpt\VersioningBundle\API\Serializer\ResourceVersionSerializer'

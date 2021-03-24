@@ -3,7 +3,7 @@
  *
  */
 
-namespace Sidpt\BinderBundle\Listener\Resource;
+namespace Sidpt\VersioningBundle\API\Listener\Tool;
 
 use Claroline\AppBundle\API\SerializerProvider;
 use Claroline\AppBundle\Persistence\ObjectManager;
@@ -77,7 +77,6 @@ class VersioningListener
      */
     public function onOpen(OpenToolEvent $event)
     {
-        
         $event->stopPropagation();
     }
 }

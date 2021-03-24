@@ -6,7 +6,7 @@
 
   "styles": {
     "entry": {
-    	"dashboard-tool": "tool/dashboard.less"
+    	"versioning-tool": "tool/versioning.less"
     }
   }
 }
