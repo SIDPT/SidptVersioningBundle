@@ -26,11 +26,54 @@ class VersionsManagingModal extends Component {
   
   constructor(props) {
     super(props)
-
     // versions array on reverse ordre 
     // (from the last/current version to the first one)
+    
     const versions = []
-    selectedBranchIndex = null
+    let selectedBranchIndex = null
+    if(this.props.branches.length > 0){
+      let version = this.props.branches[0].head
+      // if head is not the last version on the main branch
+      while(version.next.length !== 0){
+        version = version.next[0];
+        versions.unshift(version);
+      }
+      // push the head
+      version = this.props.branches[0].head
+      versions.push(version);
+      // climb back in the version tree
+      while(version.previous){
+        versions.push(version);
+        version = version.previous;
+      }
+      selectedBranchIndex = 0
+    }
+    
+    this.state = {
+      selectedBranchIndex:selectedBranchIndex,
+      selectedVersionIndex:undefined,
+      versions:versions.slice(),
+      currentView:selectedBranchIndex ? BRANCH_VIEW : NODE_UNMANAGED,
+      newBranch:null,
+      newVersion:null,
+    }
+
+    this.changeView = this.changeView.bind(this);
+    this.selectBranch = this.selectBranch.bind(this);
+    this.selectVersion = this.selectVersion.bind(this);
+    this.close = this.close.bind(this);
+    this.renderView = this.renderView.bind(this);
+
+    this.reloadBranches = this.reloadBranches.bind(this);
+
+    
+
+
+  }
+
+  reloadBranches(){
+    const versions = []
+    let selectedBranchIndex = null
     if(this.props.branches.length > 0){
       let version = this.props.branches[0].head
       // if head is not the last version on the main branch
@@ -49,22 +92,14 @@ class VersionsManagingModal extends Component {
       selectedBranchIndex = 0
     }
 
-    this.state = {
+    this.setState({
       selectedBranchIndex:selectedBranchIndex,
       selectedVersionIndex:undefined,
       versions:versions.slice(),
       currentView:selectedBranchIndex ? BRANCH_VIEW : NODE_UNMANAGED,
       newBranch:null,
       newVersion:null,
-    }
-
-    this.changeView = this.changeView.bind(this);
-    this.selectBranch = this.selectBranch.bind(this);
-    this.selectVersion = this.selectVersion.bind(this);
-    this.close = this.close.bind(this);
-    this.renderView = this.renderView.bind(this);
-
-
+    })
   }
 
   changeView(viewName) {
@@ -84,26 +119,26 @@ class VersionsManagingModal extends Component {
   }
 
   selectBranch(index) {
-    const versions = []
-    let version = this.props.branches[index].head
-    while(version.next.length !== 0){
-      version = version.next[0];
-      versions.unshift(version);
-    }
-    // push the head
-    version = this.props.branches[index].head
-    versions.push(version);
-    // climb back in the version tree
-    while(version.previous){
-      versions.push(version);
-      version = version.previous;
-    }
+    // const versions = []
+    // let version = this.props.branches[index].head
+    // while(version.next.length !== 0){
+    //   version = version.next[0];
+    //   versions.unshift(version);
+    // }
+    // // push the head
+    // version = this.props.branches[index].head
+    // versions.push(version);
+    // // climb back in the version tree
+    // while(version.previous){
+    //   versions.push(version);
+    //   version = version.previous;
+    // }
     
-    this.setState({
-      versions:versions.slice(),
-      selectedBranchIndex:index,
-    })
-
+    // this.setState({
+    //   versions:versions.slice(),
+    //   selectedBranchIndex:index,
+    // })
+    this.props.selectBranch(index);
   }
 
   selectVersion(index) {
@@ -135,6 +170,7 @@ class VersionsManagingModal extends Component {
   }
 
   renderView() {
+    console.log(this.props.branches)
     switch (this.state.currentView) {
       case NODE_UNMANAGED:
         return (
@@ -146,116 +182,117 @@ class VersionsManagingModal extends Component {
               primary={true}
               label={trans('activate_versioning', {}, 'versioning')}
               callback={() => {
-                this.props.addBranch(this.props.node)
+                this.props.addBranch(this.props.node.id)
                 this.changeView(BRANCH_VIEW);
               }}
             />
           </Fragment>
         )
       case BRANCH_VIEW:
+        const branchList = this.props.branches.map((branch) => {
+          return branch.name
+        })
         return(
-          {this.props.branches.length > 0 && 
-            <Fragment>
-              <label for="available_branches">{trans('branch')}</label>
-              <Select name="available_branches" 
-                  id="available_branches"
-                  noEmpty={true}
-                  onChange={this.selectBranch}
-                  value={this.state.selectedBranchIndex}
-                  choices={branchList}
-              />
-              <div>
-                <Button
-                    className="modal-btn btn"
-                    type={CALLBACK_BUTTON}
-                    primary={true}
-                    label={trans('edit_node', {}, 'versioning')}
-                    callback={() => {
-                      // Open the node editor for the node of the selected branch
-                    }}
-                  />
-                <Button
-                    className="modal-btn btn"
-                    type={CALLBACK_BUTTON}
-                    primary={true}
-                    label={trans('edit_resource', {}, 'versioning')}
-                    callback={() => {
-                      // Open the resource editor for the resource 
-                      // of the current latest version of the branch
-                    }}
-                  />
-                <Button
-                    className="modal-btn btn"
-                    type={CALLBACK_BUTTON}
-                    primary={true}
-                    label={trans('delete_branch', {}, 'versioning')}
-                    callback={() => {
-                      this.props.deleteBranch(this.props.branches[this.state.selectedBranchIndex])
-
-                    }}
-                  />
-              </div>
-              <div>
-                <Button
-                    className="modal-btn btn"
-                    type={CALLBACK_BUTTON}
-                    primary={true}
-                    label={trans('make_version', {}, 'versioning')}
-                    callback={() => {
-                      this.changeView(VERSION_ADD);
-                    }}
-                  />
-                <ul>
-                  {this.state.versions.map((version, index) => {
-                    const isHead = version.id === this.props.branches[this.state.selectedBranchIndex].head.id
-                    const isCurrent = index === 0;
-                    return (
-                      <li>{index}
-                        {version.name ? ` - ${version.name}` : ''}
-                        {isHead ? ' (head)' : ''}
-                        {!isHead && <Button
-                          className="modal-btn btn"
-                          type={CALLBACK_BUTTON}
-                          primary={true}
-                          label={trans('make_head', {}, 'versioning')}
-                          callback={() => {
-
-                            let newBranch = Object.assign({},
-                              this.state.newBranch ? 
-                                this.state.newBranch : 
-                                this.props.branches[this.state.selectedBranchIndex]
-                            )
-                            newBranch.head = version
-                            this.setState({
-                              newBranch:newBranch
-                            })
-                          }}
-                        />}
-                        </li>
-                      )
-                  })}
-                </ul>
-              </div>
+          <Fragment>
+            <label htmlFor="available_branches">{trans('branch')}</label>
+            <Select name="available_branches" 
+                id="available_branches"
+                noEmpty={true}
+                onChange={this.props.selectBranch}
+                value={this.props.selectedBranchIndex}
+                choices={branchList}
+            />
+            <div>
               <Button
-                className="modal-btn btn"
-                type={CALLBACK_BUTTON}
-                primary={true}
-                label={trans('save', {}, 'actions')}
-                disabled={this.state.newBranch === undefined}
-                callback={() => {
-                  if(this.state.newBranch){
-                    this.props.updateBranch(
-                      this.props.branches[this.state.selectedBranchIndex].id, 
-                      newBranch)
-                  }
-                }}
-              />
-            </Fragment>
-          }
+                  className="modal-btn btn"
+                  type={CALLBACK_BUTTON}
+                  primary={true}
+                  label={trans('edit_node', {}, 'versioning')}
+                  callback={() => {
+                    // Open the node editor for the node of the selected branch
+                  }}
+                />
+              <Button
+                  className="modal-btn btn"
+                  type={CALLBACK_BUTTON}
+                  primary={true}
+                  label={trans('edit_resource', {}, 'versioning')}
+                  callback={() => {
+                    // Open the resource editor for the resource 
+                    // of the current latest version of the branch
+                  }}
+                />
+              <Button
+                  className="modal-btn btn"
+                  type={CALLBACK_BUTTON}
+                  primary={true}
+                  label={trans('delete_branch', {}, 'versioning')}
+                  callback={() => {
+                    this.props.deleteBranch(this.props.branches[this.state.selectedBranchIndex].id)
+
+                  }}
+                />
+            </div>
+            <div>
+              <Button
+                  className="modal-btn btn"
+                  type={CALLBACK_BUTTON}
+                  primary={true}
+                  label={trans('make_version', {}, 'versioning')}
+                  callback={() => {
+                    this.changeView(VERSION_ADD);
+                  }}
+                />
+              <ul>
+                {this.state.versions.map((version, index) => {
+                  const isHead = version.id === this.props.branches[this.state.selectedBranchIndex].head.id
+                  const isCurrent = index === 0;
+                  return (
+                    <li>{index}
+                      {version.name ? ` - ${version.name}` : ''}
+                      {isHead ? ' (head)' : ''}
+                      {!isHead && <Button
+                        className="modal-btn btn"
+                        type={CALLBACK_BUTTON}
+                        primary={true}
+                        label={trans('make_head', {}, 'versioning')}
+                        callback={() => {
+
+                          let newBranch = Object.assign({},
+                            this.state.newBranch ? 
+                              this.state.newBranch : 
+                              this.props.branches[this.state.selectedBranchIndex]
+                          )
+                          newBranch.head = version
+                          this.setState({
+                            newBranch:newBranch
+                          })
+                        }}
+                      />}
+                      </li>
+                    )
+                })}
+              </ul>
+            </div>
+            <Button
+              className="modal-btn btn"
+              type={CALLBACK_BUTTON}
+              primary={true}
+              label={trans('save', {}, 'actions')}
+              disabled={this.state.newBranch === undefined}
+              callback={() => {
+                if(this.state.newBranch){
+                  this.props.updateBranch(
+                    this.props.branches[this.state.selectedBranchIndex].id, 
+                    newBranch)
+                }
+              }}
+            />
+          </Fragment>
+          
         )
       case BRANCH_ADD:
         return (
-
           <Fragment>
             <FormData
               level={5}
@@ -263,7 +300,7 @@ class VersionsManagingModal extends Component {
               dataPart={this.state.newBranch}
               sections={[
                 {
-                  title:trans('new_branch')
+                  title:trans('new_branch'),
                   primary:true,
                   fields:[
                     {
@@ -300,7 +337,7 @@ class VersionsManagingModal extends Component {
               dataPart={this.state.newVersion}
               sections={[
                 {
-                  title:trans('new_version')
+                  title:trans('new_version'),
                   primary:true,
                   fields:[
                     {
@@ -341,7 +378,7 @@ class VersionsManagingModal extends Component {
               dataPart={this.state.newVersion}
               sections={[
                 {
-                  title:trans('new_version')
+                  title:trans('new_version'),
                   primary:true,
                   fields:[
                     {
@@ -381,15 +418,14 @@ class VersionsManagingModal extends Component {
 
   // Main rendering scenario
   render() {
-    const branchList = this.props.branches.map((branch) => {
-      return branch.name
-    })
+    
     return (
       <Modal
         {...omit(
           this.props,
           'node',
-          'branches', 
+          'branches',
+          'getBranches',
           'addBranch',
           'updateBranch',
           'deleteBranch',
@@ -403,6 +439,12 @@ class VersionsManagingModal extends Component {
         title={trans('versions_manage')}
         subtitle={this.renderViewTitle()}
         fadeModal={() => this.close()}
+        onEntering={ () => {
+
+          this.props.getBranches(this.props.node.id)
+          console.log(this.props.branches)
+          this.reloadBranches()
+        }}
       >
       <div className="modal-body versioning-modal">
         {this.renderView()}
@@ -424,21 +466,26 @@ VersionsManagingModal.propTypes = {
   node:T.shape(
     ResourceNodeTypes.propTypes
   ).isRequired,
-  // branches is managed by reducer
-  branches:T.arrayOf({
-    id:T.number,
-    name:T.string,
-    resourceNode:T.object,
-    parentId:T.string,
-    head:T.object
-  }),
+  // REDUCER
+  branches:T.arrayOf(
+    T.shape({
+      id:T.string,
+      name:T.string,
+      resourceNode:T.object,
+      parentId:T.string,
+      head:T.object
+    })
+  ),
+  versions:T.arrayOf(T.object),
+  selectedBranchIndex:T.number,
   // Functions needed by the modal
+  getBranches:T.func,
+  selectBranch:T.func,
   addBranch:T.func,
   updateBranch:T.func,
   deleteBranch:T.func,
   addVersion:T.func,
   updateVersion:T.func,
-
   editNode:T.func,
   editResource:T.func,
 
