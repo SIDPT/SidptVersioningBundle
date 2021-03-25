@@ -1,7 +1,7 @@
 import {makeActionCreator} from '#/main/app/store/actions'
 
 
-import {API_REQUEST} from '#/main/app/api'
+import {API_REQUEST, url} from '#/main/app/api'
 
 
 const NODES_DATA_LOAD = 'NODES_DATA_LOAD'
@@ -81,9 +81,9 @@ requests.updateBranch = (branchId, branchData) => ({
 
 requests.deleteBranch = (branchId) => ({
   [API_REQUEST]: {
-    url: ['sidpt_versioning_delete_branch',{branch:branchId}],
+    url: url(['sidpt_versioning_delete_branch',{branch:branchId}],{_method:'DELETE'}),
     request: {
-      method: 'DELETE'
+      method: 'POST'
     },
     success: (data, dispatch) => {
       dispatch(actions.loadBranches(data))

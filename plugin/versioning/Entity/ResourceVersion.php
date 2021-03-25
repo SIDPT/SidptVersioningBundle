@@ -32,6 +32,7 @@ class ResourceVersion
      * Not following git model here :
      *     a version can only have a single branch referenced
      *     (as a resource should be uniquely bound to a node in claroline model)
+     * 
      *
      * @ORM\ManyToOne(
      *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch"

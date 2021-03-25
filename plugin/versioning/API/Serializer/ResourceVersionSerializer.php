@@ -9,8 +9,10 @@ use Claroline\CoreBundle\API\Serializer\Resource\ResourceTypeSerializer;
 use Claroline\CoreBundle\API\Serializer\User\UserSerializer;
 
 use Claroline\CoreBundle\Entity\Resource\ResourceType;
-use Claroline\CoreBundle\Entity\Resource\ResourceNodeBranch;
 use Claroline\CoreBundle\Entity\User;
+
+use Sidpt\VersioningBundle\Entity\ResourceNodeBranch;
+use Sidpt\VersioningBundle\Entity\ResourceVersion;
 
 class ResourceVersionSerializer
 {
@@ -78,6 +80,13 @@ class ResourceVersionSerializer
     public function serialize(/*ResourceVersion|Proxy*/ $version, array $options = [])
     {
         $user = $version->getLastModificationUser();
+        $next = [];
+        if (!in_array('without_next', $options)) {
+            foreach ($version->getNextVersions() as $nextVersion) {
+                $next[] = $this->serialize($nextVersion, $options);
+            }
+        }
+        
         return [
             'id' => $version->getUuid(),
             'branchId' => $version->getBranch()->getUuid(),
@@ -96,13 +105,7 @@ class ResourceVersionSerializer
                     $version->getPreviousVersion(),
                     array_merge($options, ['without_next'])
                 ),
-            'next' => in_array('without_next', $options) ? null :
-                array_map(
-                    function (ResourceVersion $next) {
-                        $this->serialize($next, $options);
-                    },
-                    $version->getNextVersions()->toArray()
-                )
+            'next' => $next
         ];
     }
 

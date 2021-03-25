@@ -29,6 +29,7 @@ const VersionsManagingModal = withReducer(selectors.STORE_NAME, reducer)(
       branches:selectors.branches(state),
       selectedBranchIndex:selectors.selectedBranchIndex(state),
       versions:selectors.versions(state),
+      selectedVersionIndex:selectors.selectedVersionIndex(state),
     }),
     (dispatch) => ({
       selectBranch(branchIndex){

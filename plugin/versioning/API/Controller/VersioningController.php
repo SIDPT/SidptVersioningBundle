@@ -10,6 +10,7 @@ use Claroline\CoreBundle\Security\PermissionCheckerTrait;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Claroline\AppBundle\Persistence\ObjectManager;
 use Claroline\AppBundle\API\Crud;
+use Claroline\AppBundle\API\Options;
 use Claroline\AppBundle\API\SerializerProvider;
 use Claroline\AppBundle\API\FinderProvider;
 use Claroline\CoreBundle\Manager\ResourceManager;
@@ -202,7 +203,7 @@ class VersioningController implements LoggerAwareInterface
         $newBranchHead = null;
         $data = $this->decodeRequest($request);
 
-
+        // Beware : thats an array, not a simple object
         $mainBranch = $this->finder->fetch(
             ResourceNodeBranch::class,
             [   'resourceNode' => $node->getId(),
@@ -240,7 +241,7 @@ class VersioningController implements LoggerAwareInterface
                     $newBranchHead->setResourceId($resource->getId());
                 }
             }
-            $mainBranch = $newBranch;
+            $mainBranch[] = $newBranch;
         } elseif (!empty($data)) {
             if (empty($data['resourceNode'])) {
                 // If no node data was provided,
@@ -276,11 +277,11 @@ class VersioningController implements LoggerAwareInterface
                 $newBranchHead->setResourceId($resource->getId());
                 
                 // add the new version as next version of the main head
-                $newBranchHead->setPreviousVersion($mainBranch->getHead());
-                $mainBranch->getHead()->addNextVersion($newBranchHead);
+                $newBranchHead->setPreviousVersion($mainBranch[0]->getHead());
+                $mainBranch[0]->getHead()->addNextVersion($newBranchHead);
             }
 
-            $newBranch->setParent($mainBranch);
+            $newBranch->setParent($mainBranch[0]);
         } else { // error case, no data provided for the new branch
             return new JsonResponse(['missing_branch_data'], 500);
         }
@@ -292,7 +293,7 @@ class VersioningController implements LoggerAwareInterface
         $this->om->persist($newBranch);
         $this->om->flush();
 
-        return $this->getBranchesAction($mainBranch->getResourceNode());
+        return $this->getBranchesAction($mainBranch[0]->getResourceNode());
     }
 
     /**

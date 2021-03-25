@@ -16,7 +16,8 @@ import {
 } from '~/sidpt/versioning-bundle/plugin/versioning/store/'
 
 import {
-	BRANCH_SELECTED
+	BRANCH_SELECTED,
+  VERSION_SELECTED
 } from '~/sidpt/versioning-bundle/plugin/versioning/modals/manage/store/actions'
 
 import {
@@ -42,18 +43,8 @@ const buildVersionsList = (branches, index) => {
 }
 
 const reducer = combineReducers({
-  branches:branchesReducer,
-  versions:makeReducer([],{
-  	[BRANCHES_DATA_LOAD]: (state,request) => {
-  		if(request.branches.length > 0){
-  			return buildVersionsList(request.branches, 0)
-  		} else return [];
-  	},
-  	[BRANCH_SELECTED]: (state,action) => {
-  		if(action.selectedBranchIndex && state.branches.length > 0){
-  			return buildVersionsList(selectors.branches(state),action.selectedBranchIndex)
-  		} else return [];
-  	}
+  branches:makeReducer([],{
+    [BRANCHES_DATA_LOAD]: (state,request) => request.branches
   }),
   selectedBranchIndex:makeReducer(null,{
   	[BRANCHES_DATA_LOAD]: (state,request) => {
@@ -64,6 +55,31 @@ const reducer = combineReducers({
   	[BRANCH_SELECTED]: (state,action) => {
   		return action.selectedBranchIndex
   	}
+  }),
+  versions:makeReducer([],{
+    [BRANCHES_DATA_LOAD]: (state,request) => {
+      if(request.branches.length > 0){
+        return buildVersionsList(request.branches, 0)
+      } else return [];
+    },
+    [BRANCH_SELECTED]: (state,action) => {
+      if(action.selectedBranchIndex && state.branches.length > 0){
+        return buildVersionsList(selectors.branches(state),action.selectedBranchIndex)
+      } else return [];
+    }
+  }),
+  selectedVersionIndex:makeReducer(null,{
+    [BRANCHES_DATA_LOAD]: (state,request) => {
+      if(request.branches.length > 0){
+        return 0;
+      } else return null;
+    },
+    [BRANCH_SELECTED]: (state,action) => {
+      return 0;
+    },
+    [VERSION_SELECTED]: (state,action) => {
+      return action.selectedVersionIndex;
+    }
   })
 })
 

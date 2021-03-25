@@ -12,13 +12,17 @@ const selectedBranchIndex = createSelector(
 
 const versions = createSelector(
   [mainSelectors.store],
-  (store) => store.selectedBranchIndex
+  (store) => store.versions
 )
 
-
+const selectedVersionIndex = createSelector(
+  [mainSelectors.store],
+  (store) => store.selectedVersionIndex
+)
 
 export const selectors = {
 	...mainSelectors,
 	selectedBranchIndex,
-	versions
+	versions,
+	selectedVersionIndex
 }
