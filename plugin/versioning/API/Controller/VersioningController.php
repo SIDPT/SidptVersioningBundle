@@ -151,14 +151,18 @@ class VersioningController implements LoggerAwareInterface
      */
     public function getBranchesAction(ResourceNode $node)
     {
-        // Get the main branch
+        
+        // Get the node branch
         $nodeBranches = $this->finder->fetch(
             ResourceNodeBranch::class,
-            [   'resourceNode' => $node->getId(),
-                'parent' => null
-            ]
+            [   'resourceNode' => $node->getId() ]
         );
+
         if (!empty($nodeBranches)) {
+            // If a main branch exist, use it instead
+            if (!empty($nodeBranches[0]->getParent())) {
+                $nodeBranches[0] = $nodeBranches[0]->getParent();
+            }
             $main = $nodeBranches[0];
             $childBranches = $this->finder->fetch(
                 ResourceNodeBranch::class,
