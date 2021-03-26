@@ -160,16 +160,18 @@ class VersioningController implements LoggerAwareInterface
         );
         if (!empty($nodeBranches)) {
             $main = $nodeBranches[0];
-            // get the child branches
-            $nodeBranches = array_merge(
-                $nodeBranches,
-                $this->finder->fetch(
-                    ResourceNodeBranch::class,
-                    ['parent' => $main->getId()]
-                )
+            $childBranches = $this->finder->fetch(
+                ResourceNodeBranch::class,
+                ['parent' => $main->getId()]
             );
+            if (!empty($childBranches)) {
+                $nodeBranches = array_merge(
+                    $nodeBranches,
+                    $childBranches
+                );
+            }
         } else {
-            $nodeBranches = [];
+            $nodeBranches = array();
         }
         return new JsonResponse(
             array_map(
@@ -180,6 +182,8 @@ class VersioningController implements LoggerAwareInterface
             )
         );
     }
+
+
 
     /**
      * Add a branch to a node
@@ -206,7 +210,7 @@ class VersioningController implements LoggerAwareInterface
         // Beware : thats an array, not a simple object
         $mainBranch = $this->finder->fetch(
             ResourceNodeBranch::class,
-            [   'resourceNode' => $node->getId(),
+            [   'resourceNode_id' => $node->getId(),
                 'parent' => null
             ]
         );
@@ -264,6 +268,7 @@ class VersioningController implements LoggerAwareInterface
             // TODO : avoid persisting the branch if a one with the same name
             // already exists for the node
             // (could be resolved on the data mode)
+            
 
             $newNode = $newBranch->getResourceNode();
             if (empty($data['head'])) {
@@ -287,8 +292,8 @@ class VersioningController implements LoggerAwareInterface
         }
         
         if (isset($newBranchHead)) {
-            $this->om->persist($newBranchHead);
             $newBranch->setHead($newBranchHead);
+            $this->om->persist($newBranchHead);
         }
         $this->om->persist($newBranch);
         $this->om->flush();
@@ -297,7 +302,24 @@ class VersioningController implements LoggerAwareInterface
     }
 
     /**
-     * @Route("/branch/{branch}",
+     * @Route("/branch/{branch}/versions",
+     *     name="sidpt_versioning_update_branch",
+     *     methods={"GET"})
+     * @EXT\ParamConverter(
+     *     "branch",
+     *     class="SidptVersioningBundle:ResourceNodeBranch",
+     *     options={"mapping": {"branch": "uuid"}})
+     *
+     */
+    public function getVersionsAction(ResourceNodeBranch $branch)
+    {
+        $head = $branch->getHead();
+
+
+    }
+
+    /**
+     * @Route("/update/branch/{branch}",
      *     name="sidpt_versioning_update_branch",
      *     methods={"PUT"})
      * @EXT\ParamConverter(
@@ -321,16 +343,20 @@ class VersioningController implements LoggerAwareInterface
     }
 
     /**
-     * @Route("/branch/{branchId}",
+     * Note:
+     * DELETE method being not allowed, replacing delete by PUT through a new route
+     *
+     * @Route("/delete/branch/{branch}",
      *     name="sidpt_versioning_delete_branch",
-     *     methods={"DELETE"})
+     *     methods={"PUT"})
      * @EXT\ParamConverter(
      *     "branch",
      *     class="SidptVersioningBundle:ResourceNodeBranch",
-     *     options={"mapping": {"branchId": "uuid"}})
+     *     options={"mapping": {"branch": "uuid"}})
      *
      */
     public function deleteBranchAction(
+        Request $request,
         ResourceNodeBranch $branch
     ) {
 
@@ -339,10 +365,23 @@ class VersioningController implements LoggerAwareInterface
         // versions referencing the branch
         $versions = $this->finder->fetch(
             ResourceVersion::class,
-            [ 'branch' => $branch->getUuid() ]
+            [ 'branch' => $branch->getId() ]
         );
 
-        // if this is a child branch,
+        // unlink all versions
+        foreach ($versions as $key => $version) {
+            // check if version is linked to another branch by its predecessor
+            $previousVersion = $version->getPreviousVersion();
+            if (!empty($previousVersion)) {
+                // remove previous to current
+                $previousVersion->removeNextVersion($version);
+                // remove current to previous
+                $version->setPreviousVersion(null);
+                $this->om->persist($previousVersion);
+            }
+        }
+
+        // remove resource and nodes of the child nodes
         if (!empty($branch->getParent())) {
             // delete the resource node associated with it
             $this->om->remove($branch->getResourceNode());
@@ -357,20 +396,22 @@ class VersioningController implements LoggerAwareInterface
                 }
             }
         }
-        
-        // remove all versions
+
+        // remove the link to the branch of each concerned version
         foreach ($versions as $key => $version) {
-            // check if version is linked to another branch by its predecessor
-            $previousVersion = $version->getPreviousVersion();
-            if ($previousVersion->getBranch() !== $branch) {
-                // remove the link
-                $previousVersion->removeNextVersion($version);
-            }
-            $this->om->remove($version);
+            $version->setBranch(null);
+            $this->om->persist($version);
         }
+        $this->om->flush();
         
         // remove the branch
         $this->om->remove($branch);
+        $this->om->flush();
+        
+        // remove all versions
+        foreach ($versions as $key => $version) {
+            $this->om->remove($version);
+        }
         $this->om->flush();
 
         // return updated branches list
@@ -432,6 +473,8 @@ class VersioningController implements LoggerAwareInterface
             $this->serializer->deserialize($data, $newVersion);
         }
 
+        $this->om->persist($resource);
+        $this->om->persist($newResource);
         $this->om->persist($version);
         $this->om->persist($newVersion);
         $this->om->persist($version->getBranch());

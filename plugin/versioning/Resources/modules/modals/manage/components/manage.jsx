@@ -5,12 +5,14 @@ import get from 'lodash/get'
 import set from 'lodash/set'
 import cloneDeep from 'lodash/cloneDeep'
 
+import classes from 'classnames'
+
 import {ResourceNode as ResourceNodeTypes} from '#/main/core/resource/prop-types'
 
 import {trans, Translator} from '#/main/app/intl/translation'
 import {Modal} from '#/main/app/overlays/modal/components/modal'
 import {Button} from '#/main/app/action/components/button'
-import {CALLBACK_BUTTON, MenuButton} from '#/main/app/buttons'
+import {CALLBACK_BUTTON, LINK_BUTTON, MenuButton} from '#/main/app/buttons'
 import {FormData} from '#/main/app/content/form/components/data'
 
 import {Select} from '#/main/app/input/components/select'
@@ -29,7 +31,7 @@ class VersionsManagingModal extends Component {
   
   constructor(props) {
     super(props)
-        
+    console.log(this.props.path);    
     this.state = {
       currentView:BRANCH_VIEW,
       newBranch:null,
@@ -42,10 +44,39 @@ class VersionsManagingModal extends Component {
 
     this.reloadBranches = this.reloadBranches.bind(this);
 
-    
+    this.buildVersionsList = this.buildVersionsList.bind(this);
 
 
   }
+
+  buildVersionsList(branch){
+    const versions = []
+    let version = branch.head
+    let nextFound = true;
+    while(version.next.length !== 0 && nextFound) {
+      nextFound = false;
+      for(const nextVersion of version.next){
+        nextFound = branch.id === nextVersion.branchId;
+        if(nextFound) {
+          version = nextVersion;
+          versions.unshift(version);
+        }
+      }
+    }
+    // push the head
+    version = branch.head
+    versions.push(version);
+    // climb back in the version tree
+    let previousOnTheBranch = true;
+    while(version.previous && previousOnTheBranch){
+      previousOnTheBranch = branch.id === version.previous.branchId;
+      if(previousOnTheBranch) {
+        version = version.previous;
+        versions.push(version);
+      }
+    }
+    return versions;
+}
 
   reloadBranches(){
     this.setState({
@@ -58,6 +89,11 @@ class VersionsManagingModal extends Component {
   changeView(viewName) {
     
     switch(viewName){
+      case BRANCH_VIEW:
+        this.setState({
+          newBranch:undefined
+        })
+        break;
       case BRANCH_ADD:
         this.setState({
           newBranch:{
@@ -121,19 +157,25 @@ class VersionsManagingModal extends Component {
             </Fragment>
           )
         } else {
-          console.log(this.props.branches)
           const branchList = {}
-          this.props.branches.forEach((branch) => {
-            branchList[branch.name] = branch.name
+          this.props.branches.forEach((branch,index) => {
+            branchList[index] = branch.name
           })
           
+          const versions = this.buildVersionsList(this.props.branches[this.props.selectedBranchIndex]);
+          let currentBranch = this.state.newBranch ? 
+            this.state.newBranch : 
+            this.props.branches[this.props.selectedBranchIndex];
           return(
             <Fragment>
               <label htmlFor="available_branches">{trans('branch')}</label>
               <Select name="available_branches" 
                   id="available_branches"
                   noEmpty={true}
-                  onChange={(index)=>this.props.selectBranch(index)}
+                  onChange={(index)=>{
+                    this.props.selectBranch(index)
+                    this.changeView(BRANCH_VIEW)
+                  }}
                   value={this.props.selectedBranchIndex}
                   choices={branchList}
               />
@@ -149,28 +191,18 @@ class VersionsManagingModal extends Component {
                 />
                 <Button
                     className="btn"
-                    type={CALLBACK_BUTTON}
+                    icon='fa fa-fw fa-pencil'
+                    type={LINK_BUTTON}
                     primary={true}
-                    label={trans('edit_node', {}, 'versioning')}
-                    callback={() => {
-                      // Open the node editor for the node of the selected branch
-                    }}
-                  />
-                <Button
-                    className="btn"
-                    type={CALLBACK_BUTTON}
-                    primary={true}
-                    label={trans('edit_resource', {}, 'versioning')}
-                    callback={() => {
-                      // Open the resource editor for the resource 
-                      // of the current latest version of the branch
-                    }}
+                    label={trans('edit_branch_resource', {}, 'versioning')}
+                    target={`${this.props.path}/${currentBranch.resourceNode.slug}/edit`}
                   />
                 <Button
                     className="btn"
                     type={CALLBACK_BUTTON}
                     primary={true}
                     label={trans('delete_branch', {}, 'versioning')}
+                    disabled={this.props.branches.length > 0 && this.props.selectedBranchIndex === 0}
                     callback={() => {
                       this.props.deleteBranch(this.props.branches[this.props.selectedBranchIndex].id)
 
@@ -188,11 +220,11 @@ class VersionsManagingModal extends Component {
                     }}
                   />
                 <ul>
-                  {this.props.versions.map((version, index) => {
-                    const isHead = version.id === this.props.branches[this.props.selectedBranchIndex].head.id
+                  {versions.map((version, index) => {
+                    const isHead = version.id === currentBranch.head.id
                     const isCurrent = index === 0;
                     return (
-                      <li key={`version_${index}`}>{index}
+                      <li className={classes('version', {head:isHead})} key={`version_${index}`}>resource {version.resourceId} - {version.creationDate.date} 
                         {version.name ? ` - ${version.name}` : ''}
                         {isHead ? ' (head)' : ''}
                         {!isHead && <Button
@@ -201,13 +233,8 @@ class VersionsManagingModal extends Component {
                           primary={true}
                           label={trans('make_head', {}, 'versioning')}
                           callback={() => {
-                            let newBranch = {
-                              data:Object.assign({},this.state.newBranch.data ? 
-                                this.state.newBranch.data : 
-                                this.props.branches[this.props.selectedBranchIndex]
-                              )
-                            }
-                            newBranch.data.head = version
+                            let newBranch = Object.assign({},currentBranch);
+                            newBranch.head = version
                             this.setState({
                               newBranch:newBranch
                             })
@@ -243,11 +270,8 @@ class VersionsManagingModal extends Component {
               name={selectors.STORE_NAME}
               data={this.state.newBranch}
               updateProp={(prop,value)=>{
-
-                console.log(prop)
-                console.log(value)
                 let tempData = cloneDeep(this.state.newBranch);
-                console.log(tempData)
+                
                 tempData[prop] = value;
                 console.log(tempData)
                 this.setState({
@@ -279,7 +303,7 @@ class VersionsManagingModal extends Component {
               callback={() => {
                 this.props.addBranch(
                   this.props.node.id,
-                  this.state.newBranch.data)
+                  this.state.newBranch)
                 this.changeView(BRANCH_VIEW)
               }}
             />
@@ -293,6 +317,7 @@ class VersionsManagingModal extends Component {
           </Fragment>
         )
       case VERSION_ADD:
+        const versions = this.buildVersionsList(this.props.branches[this.props.selectedBranchIndex])
         return (
           <Fragment>
             <FormData
@@ -302,7 +327,6 @@ class VersionsManagingModal extends Component {
               updateProp={(prop,value)=>{
                 let tempVersion = cloneDeep(this.state.newVersion);
                 tempVersion[prop] = value;
-                console.log(tempVersion)
                 this.setState({
                   newVersion:tempVersion
                 })
@@ -331,10 +355,9 @@ class VersionsManagingModal extends Component {
               type={CALLBACK_BUTTON}
               primary={true}
               label={trans('save', {}, 'actions')}
-              disabled={!this.props.saveEnabled}
               callback={() => {
                 this.props.addVersion(
-                  this.props.versions[0].id, 
+                  versions[0].id, 
                   this.state.newVersion.data)
                 this.changeView(BRANCH_VIEW)
               }}
@@ -364,11 +387,6 @@ class VersionsManagingModal extends Component {
                       name:'name',
                       label:trans('version_name', {}, 'versioning'),
                       type:'string'
-                    },
-                    {
-                      name:'isHead',
-                      label:trans('branch_head', {}, 'versioning'),
-                      type:'boolean'
                     }
                   ]
                 }
@@ -411,8 +429,8 @@ class VersionsManagingModal extends Component {
           this.props,
           'node',
           'branches',
-          'versions',
           'selectedBranchIndex',
+          'selectedVersionIndex',
           'selectBranch',
           'getBranches',
           'addBranch',
@@ -443,6 +461,7 @@ VersionsManagingModal.propTypes = {
   node:T.shape(
     ResourceNodeTypes.propTypes
   ).isRequired,
+  path:T.string,
   // REDUCER
   branches:T.arrayOf(
     T.shape({
@@ -454,7 +473,6 @@ VersionsManagingModal.propTypes = {
     })
   ),
   selectedBranchIndex:T.number,
-  versions:T.arrayOf(T.object),
   selectedVersionIndex:T.number,
   // Functions needed by the modal
   getBranches:T.func,

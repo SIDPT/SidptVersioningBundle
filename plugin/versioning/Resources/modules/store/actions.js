@@ -81,9 +81,14 @@ requests.updateBranch = (branchId, branchData) => ({
 
 requests.deleteBranch = (branchId) => ({
   [API_REQUEST]: {
-    url: url(['sidpt_versioning_delete_branch',{branch:branchId}],{_method:'DELETE'}),
+    url: ['sidpt_versioning_delete_branch',{branch:branchId}],
     request: {
-      method: 'POST'
+      method: 'PUT',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
     },
     success: (data, dispatch) => {
       dispatch(actions.loadBranches(data))

@@ -89,7 +89,7 @@ class ResourceNodeBranch
      * @ORM\JoinColumn(
      *     name="head_id",
      *     referencedColumnName="id",
-     *     nullable=false
+     *     nullable=true
      * )
      *
      * @var ResourceVersion

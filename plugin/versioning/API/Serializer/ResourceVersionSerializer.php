@@ -77,20 +77,19 @@ class ResourceVersionSerializer
         return '~/sidpt/versioning-bundle/plugin/versioning/version.json';
     }
 
-    public function serialize(/*ResourceVersion|Proxy*/ $version, array $options = [])
+    public function serialize(ResourceVersion $version, array $options = [])
     {
         $user = $version->getLastModificationUser();
         $next = [];
-        if (!in_array('without_next', $options)) {
+        if (!(in_array('without_next', $options) || $version->getNextVersions()->isEmpty())) {
             foreach ($version->getNextVersions() as $nextVersion) {
                 $next[] = $this->serialize($nextVersion, $options);
             }
         }
-        
+        $branch = $version->getBranch();
         return [
             'id' => $version->getUuid(),
-            'branchId' => $version->getBranch()->getUuid(),
-            'isHead'=> $version->getBranch()->getHead()->getUuid() === $version->getUuid(),
+            'branchId' => !empty($branch) ? $branch->getUuid() : null,
             'version' => $version->getVersion(),
             'resourceType' => $this->typeSerializer->serialize(
                 $version->getResourceType()

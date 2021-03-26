@@ -28,7 +28,6 @@ const VersionsManagingModal = withReducer(selectors.STORE_NAME, reducer)(
     (state) => ({
       branches:selectors.branches(state),
       selectedBranchIndex:selectors.selectedBranchIndex(state),
-      versions:selectors.versions(state),
       selectedVersionIndex:selectors.selectedVersionIndex(state),
     }),
     (dispatch) => ({
@@ -49,7 +48,7 @@ const VersionsManagingModal = withReducer(selectors.STORE_NAME, reducer)(
         dispatch(requests.deleteBranch(branchId))
       },
       addVersion(afterVersionId, newVersionData){
-        dispatch(requests.addVersion(afterVersionId, newVersionData))
+        dispatch(requests.commit(afterVersionId, newVersionData))
       },
       updateVersion(versionId,newVersionData){
         dispatch(requests.updateVersion(versionId, newVersionData))

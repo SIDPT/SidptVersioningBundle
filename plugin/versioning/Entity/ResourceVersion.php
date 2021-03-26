@@ -35,9 +35,10 @@ class ResourceVersion
      * 
      *
      * @ORM\ManyToOne(
-     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch"
+     *     targetEntity="Sidpt\VersioningBundle\Entity\ResourceNodeBranch",
+     *     cascade={"persist"}
      * )
-     * @ORM\JoinColumn(name="branch_id", referencedColumnName="id", nullable=true)
+     * @ORM\JoinColumn(name="branch_id", referencedColumnName="id", nullable=true, onDelete="SET NULL")
      *
      * @var string
      */
@@ -144,6 +145,8 @@ class ResourceVersion
         $this->refreshUuid();
         $this->creationDate = new \DateTime("now");
         $this->lastModificationDate = new \DateTime("now");
+
+        $this->nextVersions = new ArrayCollection();
     }
 
     // GETTERS

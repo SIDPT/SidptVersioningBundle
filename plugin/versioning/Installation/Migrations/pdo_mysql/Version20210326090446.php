@@ -8,9 +8,9 @@ use Doctrine\Migrations\AbstractMigration;
 /**
  * Auto-generated migration based on mapping information: modify it with caution.
  *
- * Generation date: 2021/03/24 07:34:21
+ * Generation date: 2021/03/26 09:04:48
  */
-class Version20210324073418 extends AbstractMigration
+class Version20210326090446 extends AbstractMigration
 {
     public function up(Schema $schema)
     {
