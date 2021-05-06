@@ -2,10 +2,10 @@
 
 namespace Sidpt\VersioningBundle;
 
-use Claroline\CoreBundle\Library\DistributionPluginBundle;
+use Claroline\KernelBundle\Bundle\ExternalPluginBundle;
 use Sidpt\VersioningBundle\Installation\AdditionalInstaller;
 
-class SidptVersioningBundle extends DistributionPluginBundle
+class SidptVersioningBundle extends ExternalPluginBundle
 {
     public function getAdditionalInstaller()
     {

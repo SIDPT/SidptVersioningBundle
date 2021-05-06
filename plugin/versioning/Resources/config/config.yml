@@ -1,6 +1,4 @@
 plugin:
-    has_options: false
-
     resource_actions:
         - name: manage_versions
           group: management
